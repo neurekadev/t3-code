@@ -88,16 +88,7 @@ RUN sed -i -E "s#^(root:([^:]*:){4})[^:]*#\1$HOME#" /etc/passwd \
 
 COPY config/mise.toml /app/config/mise.toml
 # TEMP DIAGNOSTICS (issue #7)
-RUN sed -i 's/\r$//' /app/config/mise.toml \
- && ln -sf /app/config/mise.toml /etc/mise/config.toml \
- && export HOME=/tmp/diag-home \
- && set -x \
- && mise --version; ls -la /etc/mise; \
-    mise config ls; mise ls; \
-    MISE_DEBUG=1 mise ls 2>&1 | grep -iE 'config|trust|toml' | head -60; \
-    MISE_SYSTEM_CONFIG_FILE=/app/config/mise.toml mise config ls; \
-    rm /etc/mise/config.toml; cp /app/config/mise.toml /etc/mise/config.toml; mise config ls; mise ls; \
-    rm -f /etc/mise/config.toml; mise doctor 2>&1 | head -80; rm -rf /tmp/diag-home; true
+RUN sed -i 's/$//' /app/config/mise.toml  && cp /app/config/mise.toml /etc/mise/config.toml  && export HOME=/tmp/diag-home  && set -x  && env | sort | grep -vE 'TOKEN|SECRET' ;     MISE_TRACE=1 mise config ls 2>&1 | head -150; echo "exit=$?";     mkdir -p /tmp/proj && cp /app/config/mise.toml /tmp/proj/mise.toml && (cd /tmp/proj && mise config ls; mise ls --missing | head);     curl -fsSL https://mise.run | MISE_VERSION=v2026.9.17 MISE_INSTALL_PATH=/tmp/mise-old sh; /tmp/mise-old --version; /tmp/mise-old config ls; /tmp/mise-old ls --missing | head;     rm -rf /tmp/diag-home /tmp/proj /tmp/mise-old /etc/mise/config.toml; true
 # Toolchains install into the image, not the data volume, so a rebuild replaces
 # them. A throwaway HOME keeps installers from writing into the volume skeleton.
 # MISE_YES is set for this build step only: at runtime it would also auto-answer
