@@ -1,0 +1,62 @@
+# Ubuntu 24.04 packages baked into the image. One package per line; `#` starts a
+# comment. Add a line and run the refresh rebuild (see README) to install more.
+# What each one is for: TOOLS.md.
+
+# Version control and remote access
+git
+git-lfs
+openssh-client
+gnupg
+
+# Build toolchain for C, C++ and native modules (gcc, g++, make, libc headers)
+build-essential
+cmake
+ninja-build
+clang
+pkg-config
+libssl-dev
+gdb
+strace
+
+# Database clients
+postgresql-client
+default-mysql-client
+redis-tools
+sqlite3
+
+# Shell and everyday utilities
+bash-completion
+curl
+wget
+jq
+less
+tree
+file
+lsof
+htop
+tmux
+nano
+vim
+rsync
+unzip
+zip
+xz-utils
+zstd
+
+# Networking diagnostics
+dnsutils
+iproute2
+iputils-ping
+
+# System Python, for scripts that expect /usr/bin/python3
+python3
+python3-venv
+
+# Runtime support: certificates, .NET globalization, locales, time zones,
+# process tools, and the init that reaps orphaned agent processes
+ca-certificates
+libicu74
+locales
+tzdata
+procps
+tini

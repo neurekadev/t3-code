@@ -1,0 +1,10 @@
+.git
+.gitignore
+.gitattributes
+.dockerignore
+.env
+.env.*
+import
+compose.yaml
+Dockerfile
+*.md

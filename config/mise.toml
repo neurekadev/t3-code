@@ -1,0 +1,59 @@
+# Language toolchains and developer CLIs baked into the image, installed by mise
+# (https://mise.jdx.dev). What each one is for: TOOLS.md.
+#
+# Each entry is pinned to a major version. The refresh rebuild (see README)
+# installs the newest release within that major; nothing updates in between.
+# To add a tool or raise a major, edit this file and run the refresh rebuild.
+#
+# Where the major never changes (Go 1, Python 3) the release line is pinned
+# instead; for 0.x tools the minor is the major, following semver.
+#
+# T3 Code, Claude Code, Codex and OpenCode are not here: they live in the data
+# volume and update from the T3 Code app.
+
+[tools]
+# Go
+go = "1.27"
+golangci-lint = "2"
+
+# JavaScript / TypeScript. Yarn and pnpm come from Corepack, which runs the
+# exact version each project declares in package.json "packageManager".
+node = "24"   # current LTS; Node 26 becomes LTS in late October 2026
+"npm:corepack" = "0.36"
+bun = "1"
+deno = "2"
+
+# .NET SDK; includes the ASP.NET Core runtime. Add "8" for projects still on
+# .NET 8 (end of support 2026-11-10): dotnet = ["10", "8"]
+dotnet = "10"
+
+# Java
+java = "temurin-25"   # current LTS
+maven = "3"
+gradle = "9"
+
+# Python
+python = "3.14"
+uv = "0.12"
+
+# Rust (rustup's stable channel; Rust stays on major 1)
+rust = "stable"
+
+# Developer CLIs
+gh = "2"
+just = "1"
+ripgrep = "15"
+fd = "10"
+yq = "4"
+shellcheck = "0.11"
+lazygit = "0.65"
+delta = "0.20"
+
+# Optional: uncomment and rebuild to add.
+# kotlin = "2"
+# protoc = "36"
+# ruby = "4"
+# terraform = "1.16"
+# kubectl = "1.37"
+# helm = "4"
+# docker-cli = "29"   # needs a Docker daemon; see TOOLS.md
