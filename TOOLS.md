@@ -4,8 +4,8 @@ Everything installed in the container, what it is for, and how it updates.
 
 - **App**: lives in the data volume and updates only when you click update in
   the T3 Code app.
-- **Rebuild**: baked into the image and updates only on a refresh rebuild
-  (see README), to the newest release within its pinned major.
+- **Image**: baked into the image and updates only when you pull a newer
+  image (see README), within its pinned major.
 
 ## Coding agents
 
@@ -60,7 +60,7 @@ Also installed by mise.
 
 ## System packages
 
-Ubuntu 24.04 packages from `config/apt-packages.txt`, refreshed on rebuild.
+Ubuntu 24.04 packages from `config/apt-packages.txt`, refreshed with the image.
 
 | Tool | What it is |
 |---|---|
@@ -87,7 +87,7 @@ Ubuntu 24.04 packages from `config/apt-packages.txt`, refreshed on rebuild.
 
 ## Not included
 
-Left out on purpose. Add any of them as described in the README.
+Left out on purpose. Add any of them as described below.
 
 | Tool | Why not | How to add |
 |---|---|---|

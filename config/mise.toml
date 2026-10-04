@@ -1,9 +1,10 @@
 # Language toolchains and developer CLIs baked into the image, installed by mise
 # (https://mise.jdx.dev). What each one is for: TOOLS.md.
 #
-# Each entry is pinned to a major version. The refresh rebuild (see README)
-# installs the newest release within that major; nothing updates in between.
-# To add a tool or raise a major, edit this file and run the refresh rebuild.
+# Each entry is pinned to a major version. An image build installs the newest
+# release within that major; a running container never updates them.
+# To add a tool or raise a major, edit this file and push to main: CI publishes
+# a new image.
 #
 # Where the major never changes (Go 1, Python 3) the release line is pinned
 # instead; for 0.x tools the minor is the major, following semver.
@@ -49,7 +50,7 @@ shellcheck = "0.11"
 lazygit = "0.65"
 delta = "0.20"
 
-# Optional: uncomment and rebuild to add.
+# Optional: uncomment to add.
 # kotlin = "2"
 # protoc = "36"
 # ruby = "4"

@@ -1,8 +1,8 @@
 services:
   t3code:
-    build: .
+    image: ghcr.io/neurekadev/t3-code:edge
     container_name: t3code
-    # A fixed hostname keeps T3 Code's usage history on one host across rebuilds.
+    # A fixed hostname keeps T3 Code's usage history on one host across image updates.
     hostname: t3code
     env_file: [.env]
     networks: [t3code]

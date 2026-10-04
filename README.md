@@ -1,15 +1,27 @@
+<div align="center">
+
 # T3 Code in Docker
 
-A T3 Code server with Claude Code, Codex, OpenCode and a full set of
-development tools. Your desktop and mobile apps connect to it, and agents do
-their work on this server. Nothing updates on its own, so a running agent is
-never interrupted by an update you didn't start.
+[![Release](https://img.shields.io/github/v/release/neurekadev/t3-code?style=flat-square&label=Release&color=F43F5E&logo=github&logoColor=F43F5E)](https://github.com/neurekadev/t3-code/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/neurekadev/t3-code/CI.yaml?branch=main&style=flat-square&label=CI&color=8B5CF6&logo=githubactions&logoColor=8B5CF6)](https://github.com/neurekadev/t3-code/actions/workflows/CI.yaml)
+[![License](https://img.shields.io/github/license/neurekadev/t3-code?style=flat-square&label=License&color=14B8A6&logo=opensourceinitiative&logoColor=14B8A6)](./LICENSE.md)
+[![AI](https://img.shields.io/badge/AI-assisted-5786FE?style=flat-square&logo=deepseek&logoColor=5786FE)](https://github.com/neurekadev/t3-code)
+[![Stars](https://img.shields.io/github/stars/neurekadev/t3-code?style=flat-square&label=Stars&color=EAB308&logo=googlegemini&logoColor=EAB308)](https://github.com/neurekadev/t3-code)
 
-Every installed tool is listed in [TOOLS.md](TOOLS.md).
+A T3 Code server with Claude Code, Codex, OpenCode and a full set of development
+tools. Your desktop and mobile apps connect to it, and agents do their work on
+this server. Nothing updates on its own, so a running agent is never
+interrupted by an update you didn't start.
 
-## First-time setup
+</div>
 
-Run these on the server, in this folder.
+## Quickstart
+
+Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
+
+## Usage
+
+Run these on the server, in the folder with the downloaded files.
 
 1. **Settings.** Create your `.env` and read through it; every setting is
    explained inside. You must fill in `T3CODE_DOCKER_BIND_ADDRESS` (which
@@ -19,17 +31,24 @@ Run these on the server, in this folder.
    cp .env.example .env
    ```
 
-2. **Your SSH key, git config and T3 Code settings** (optional): see
-   [Import your setup](#import-your-setup).
-
-3. **Start.** The first build installs every toolchain and takes a while:
+2. **Log in to the registry.** The image is private. Use a GitHub token with
+   the `read:packages` scope:
 
    ```bash
-   docker compose up -d --build
+   echo <token> | docker login ghcr.io -u <github-user> --password-stdin
+   ```
+
+3. **Your SSH key, git config and T3 Code settings** (optional): see
+   [Import your setup](#import-your-setup).
+
+4. **Start.** The first start downloads a large image:
+
+   ```bash
+   docker compose up -d
    docker compose logs -f        # Ctrl+C to stop watching
    ```
 
-4. **Sign in to the agents** you use:
+5. **Sign in to the agents** you use:
 
    ```bash
    docker exec -it t3code claude auth login
@@ -37,7 +56,7 @@ Run these on the server, in this folder.
    docker exec -it t3code opencode auth login
    ```
 
-5. **Connect your apps.** Scan the QR code with the mobile app, or paste the
+6. **Connect your apps.** Scan the QR code with the mobile app, or paste the
    link into the desktop app under **Settings → Connections → Add environment**.
    The link shows the container's own address (`0.0.0.0` or `172.x.x.x`);
    replace it with the server's IP or hostname, keeping port `3773`.
@@ -46,14 +65,24 @@ Run these on the server, in this folder.
    docker exec -it t3code t3 pair
    ```
 
-6. In the app, turn on **Settings → General → Continue threads after restarts**.
+7. In the app, turn on **Settings → General → Continue threads after restarts**.
 
 Projects can live anywhere in the home folder (`~`); everything there is kept.
 
+## Features
+
+- T3 Code server for the desktop and mobile apps, with Claude Code, Codex and
+  OpenCode ready to sign in.
+- Go, Node.js, Bun, Deno, .NET, Java, Python and Rust toolchains plus everyday
+  developer CLIs. Every tool is listed in [TOOLS.md](TOOLS.md).
+- Your SSH keys, git config and T3 Code settings, imported on every start.
+- One shared skills repository for every agent, kept in sync automatically.
+- Projects, threads, logins and keys kept in a Docker volume across updates.
+
 ## Import your setup
 
-Put files in the `import` folder, then run `docker compose restart`. The folder
-is read-only to the container and git-ignored, so keys can't be committed.
+Put files in an `import` folder next to `compose.yaml`, then run
+`docker compose restart`. The folder is read-only to the container.
 
 | Put this | Here | Effect |
 |---|---|---|
@@ -109,32 +138,10 @@ them up.
 |---|---|
 | T3 Code | In the app: **Update server** (mobile: **Settings → Environments → Check for updates**). Rolls back if the new version fails. |
 | Claude Code, Codex, OpenCode | In the app: **Settings → Providers → Update now**. |
-| Everything else | Refresh rebuild, below. |
-
-The refresh rebuild installs the newest system packages and the newest release
-of every tool within its pinned major version:
-
-```bash
-docker compose build --pull --build-arg BUILD_REFRESH=$(date +%s)
-docker compose up -d
-```
+| Toolchains and system packages | Pull the newest image: `docker compose pull && docker compose up -d` |
 
 `up -d` restarts the container and stops running agents, so pick a quiet
 moment. Your projects, threads, logins, keys and app-updated tools are kept.
-
-## Adding dev dependencies
-
-Toolchains are managed by **mise**, a tool version manager: `config/mise.toml`
-lists each tool and its version, and mise installs them during the build.
-
-| To add | Edit | Example |
-|---|---|---|
-| A language or CLI tool | `config/mise.toml` | `kotlin = "2"` (list: `docker exec t3code mise registry`) |
-| A system package | `config/apt-packages.txt` | `php-cli` |
-| A .NET global tool | Nothing: `docker exec t3code dotnet tool install -g dotnet-ef` | Kept in the data volume. |
-
-Then run the refresh rebuild above. [TOOLS.md](TOOLS.md) lists optional tools
-that are ready to uncomment.
 
 ## Limit access to one network
 
@@ -177,3 +184,11 @@ After the next reboot, `docker port t3code` should list port 3773.
   settings, logins, keys, git config and skills. Back it up; deleting it is a
   full reset. The `cache` volume only holds downloads and is safe to delete.
 - **Logs:** `docker compose logs -f`. Startup messages start with `[t3code]`.
+
+## Why Use T3 Code in Docker?
+
+- Agents work on a server that stays on, so threads keep running when your
+  laptop sleeps.
+- Every toolchain is already installed, so agents can build and test most
+  projects right away.
+- Updates happen only when you start them, so running work is never cut off.

@@ -1,5 +1,5 @@
 # Ubuntu 24.04 packages baked into the image. One package per line; `#` starts a
-# comment. Add a line and run the refresh rebuild (see README) to install more.
+# comment. Add a line and push to main to install more: CI publishes a new image.
 # What each one is for: TOOLS.md.
 
 # Version control and remote access
