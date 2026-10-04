@@ -56,7 +56,7 @@ Also installed by mise.
 | `yq` | Query and edit YAML (and JSON, TOML) from the shell | 4 |
 | `shellcheck` | Finds bugs in shell scripts | 0.11 |
 | `lazygit` | Terminal UI for git | 0.65 |
-| `delta` | Readable, syntax-highlighted `git diff` output | 0.20 |
+| `delta` | Readable, syntax-highlighted `git diff` output | 0.19 |
 
 ## System packages
 
