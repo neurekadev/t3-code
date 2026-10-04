@@ -87,6 +87,17 @@ RUN sed -i -E "s#^(root:([^:]*:){4})[^:]*#\1$HOME#" /etc/passwd \
  && chmod 700 "$HOME"
 
 COPY config/mise.toml /app/config/mise.toml
+# TEMP DIAGNOSTICS (issue #7)
+RUN sed -i 's/\r$//' /app/config/mise.toml \
+ && ln -sf /app/config/mise.toml /etc/mise/config.toml \
+ && export HOME=/tmp/diag-home \
+ && set -x \
+ && mise --version; ls -la /etc/mise; \
+    mise config ls; mise ls; \
+    MISE_DEBUG=1 mise ls 2>&1 | grep -iE 'config|trust|toml' | head -60; \
+    MISE_SYSTEM_CONFIG_FILE=/app/config/mise.toml mise config ls; \
+    rm /etc/mise/config.toml; cp /app/config/mise.toml /etc/mise/config.toml; mise config ls; mise ls; \
+    rm -f /etc/mise/config.toml; mise doctor 2>&1 | head -80; rm -rf /tmp/diag-home; true
 # Toolchains install into the image, not the data volume, so a rebuild replaces
 # them. A throwaway HOME keeps installers from writing into the volume skeleton.
 # MISE_YES is set for this build step only: at runtime it would also auto-answer
