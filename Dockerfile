@@ -93,13 +93,28 @@ RUN sed -i -E "s#^(root:([^:]*:){4})[^:]*#\1$HOME#" /etc/passwd \
 
 COPY config/mise.toml /app/config/mise.toml
 # TEMP PROBE (issue #7)
-RUN sed -i 's/\r$//' /app/config/mise.toml \
- && ln -s /app/config/mise.toml /etc/mise/config.toml \
- && export HOME=/tmp/probe-home \
- && for v in v2026.9.18 v2026.10.0 v2026.10.1 v2026.10.2; do \
-      curl -fsSL https://mise.run | MISE_VERSION=$v MISE_INSTALL_PATH=/tmp/mise-$v sh >/dev/null 2>&1; \
-      echo "PROBE $v: $(/tmp/mise-$v config ls 2>&1 | cut -c1-40 | tr '\n' ' ')"; \
-    done; rm -rf /tmp/mise-v* /tmp/probe-home /etc/mise/config.toml
+RUN <<'EOF'
+sed -i 's/\r$//' /app/config/mise.toml
+for v in v2026.9.17 v2026.10.1 v2026.10.2; do
+  curl -fsSL https://mise.run | MISE_VERSION=$v MISE_INSTALL_PATH=/tmp/mise-$v sh >/dev/null 2>&1
+  for mode in symlink copy envfile; do
+    for dir in /app /; do
+      rm -rf /tmp/ph /etc/mise/config.toml; unset MISE_SYSTEM_CONFIG_FILE
+      case $mode in
+        symlink) ln -s /app/config/mise.toml /etc/mise/config.toml ;;
+        copy) cp /app/config/mise.toml /etc/mise/config.toml ;;
+        envfile) export MISE_SYSTEM_CONFIG_FILE=/app/config/mise.toml ;;
+      esac
+      out=$(cd $dir && HOME=/tmp/ph /tmp/mise-$v config ls 2>&1 | cut -c1-30 | tr '\n' ' ')
+      echo "PROBE $v $mode cwd=$dir: [$out]"
+    done
+  done
+  rm -rf /tmp/ph /etc/mise/config.toml; unset MISE_SYSTEM_CONFIG_FILE
+  ln -s /app/config/mise.toml /etc/mise/config.toml
+  (cd /app && HOME=/tmp/ph MISE_DEBUG=1 /tmp/mise-$v config ls 2>&1 | grep -iE 'trust|ignor|canonical|etc/mise|app/config|untrusted|error' | head -20 | sed "s|^|PROBE $v debug: |")
+done
+rm -rf /tmp/mise-v* /tmp/ph /etc/mise/config.toml
+EOF
 # Toolchains install into the image, not the data volume, so a rebuild replaces
 # them. A throwaway HOME keeps installers from writing into the volume skeleton.
 # MISE_YES is set for this build step only: at runtime it would also auto-answer
