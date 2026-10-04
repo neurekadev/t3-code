@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+# Prepares the container on every start, then runs T3 Code's service launcher:
+#   1. Applies files from the import folder: SSH keys, T3 settings. (Git reads
+#      import/gitconfig directly through /etc/gitconfig.)
+#   2. Starts an SSH agent holding the imported keys (clone, push, signing, ssh).
+#   3. Installs T3 Code, Claude Code, Codex and OpenCode if they are missing.
+#      Installed tools are never updated here; updates come from the T3 Code app.
+#   4. Keeps the skills repository in sync in the background, if configured.
+set -euo pipefail
+
+IMPORT_DIR=/app/import
+T3_USERDATA="$T3CODE_HOME/userdata"
+T3_STATE_FILE="$T3CODE_HOME/runtime/service-state.json"
+T3_VERSIONS_DIR="$T3CODE_HOME/runtime/versions"
+T3_CLI_LINK="$HOME/.local/bin/t3"
+# Must match SERVICE_LAUNCHER_PROTOCOL in apps/server/src/cloud/serviceProtocol.ts.
+T3_LAUNCHER_PROTOCOL=3
+SKILLS_CLONE=/app/data/skills
+
+log() {
+  printf '[t3code] %s\n' "$*" >&2
+}
+
+is_private_key() {
+  grep -q -- '-----BEGIN .*PRIVATE KEY-----' "$1" 2>/dev/null
+}
+
+# Copies import/ssh into ~/.ssh with the permissions OpenSSH requires. Windows
+# line endings are stripped. The imported config is prefixed so ssh always uses
+# this container's agent, overriding Windows-only IdentityAgent pipes.
+import_ssh() {
+  local source=$IMPORT_DIR/ssh file name mode
+  [[ -d $source ]] || return 0
+  mkdir -p "$HOME/.ssh"
+  chmod 700 "$HOME/.ssh"
+
+  for file in "$source"/*; do
+    [[ -f $file ]] || continue
+    name=$(basename "$file")
+    if [[ $name == config ]]; then
+      {
+        printf '# Generated from import/ssh/config on container start; edit that file instead.\n'
+        printf 'Host *\n    IdentityAgent SSH_AUTH_SOCK\n\n'
+        tr -d '\r' <"$file"
+      } >"$HOME/.ssh/config"
+      chmod 600 "$HOME/.ssh/config"
+      continue
+    fi
+    mode=600
+    [[ $name == *.pub || $name == known_hosts* ]] && mode=644
+    tr -d '\r' <"$file" >"$HOME/.ssh/$name"
+    chmod "$mode" "$HOME/.ssh/$name"
+  done
+  log "Imported SSH files from import/ssh."
+}
+
+start_ssh_agent() {
+  local key loaded=0
+  mkdir -p "$(dirname "$SSH_AUTH_SOCK")"
+  rm -f "$SSH_AUTH_SOCK"
+  ssh-agent -a "$SSH_AUTH_SOCK" >/dev/null
+
+  for key in "$HOME"/.ssh/*; do
+    if [[ ! -f $key ]] || ! is_private_key "$key"; then
+      continue
+    fi
+    if ssh-add -q "$key" </dev/null 2>/dev/null; then
+      loaded=$((loaded + 1))
+    else
+      log "Could not load SSH key $(basename "$key"); keys with a passphrase are not supported."
+    fi
+  done
+  log "SSH agent ready with $loaded key(s)."
+}
+
+# /etc/gitconfig (built into the image) includes import/gitconfig and replaces
+# Windows-only programs. Warn about any other Windows paths it still contains.
+check_git_config() {
+  local imported=$IMPORT_DIR/gitconfig
+  # A drive letter must not follow another letter, so URLs (https://) don't match.
+  local windows_path='(^|[^a-z0-9])[a-z]:[\\/]|\.exe'
+  if [[ -f $imported ]] && grep -qiE "$windows_path" "$imported"; then
+    log "import/gitconfig has Windows paths in:" \
+      "$(grep -iE "$windows_path" "$imported" | sed -E 's/^\s*([^= ]+).*/\1/' | tr '\n' ' ')"
+    log "core.sshCommand and gpg.ssh.program are replaced automatically; fix any others."
+  fi
+}
+
+# Copies import/t3 into T3 Code's userdata. Each file is applied again only when
+# its imported copy changes, so later edits made in the app are kept.
+import_t3_settings() {
+  local source=$IMPORT_DIR/t3 file relative target marker checksum
+  [[ -d $source ]] || return 0
+  while IFS= read -r -d '' file; do
+    relative=${file#"$source"/}
+    [[ $relative == settings.json || $relative == keybindings.json || $relative == themes/*.json ]] || continue
+    target=$T3_USERDATA/$relative
+    marker=$T3_USERDATA/.imported/$relative.sha256
+    checksum=$(sha256sum "$file" | cut -d' ' -f1)
+    [[ -f $marker && $(cat "$marker") == "$checksum" ]] && continue
+    mkdir -p "$(dirname "$target")" "$(dirname "$marker")"
+    cp "$file" "$target"
+    printf '%s\n' "$checksum" >"$marker"
+    log "Imported T3 Code $relative."
+  done < <(find "$source" -type f -print0)
+}
+
+# Prints the version the `t3` symlink points at; empty before the first install.
+staged_t3_version() {
+  local target
+  if target=$(readlink "$T3_CLI_LINK" 2>/dev/null); then
+    basename "$(dirname "$target")"
+  fi
+}
+
+# Prints the version the service launcher runs; empty before the first start.
+active_t3_version() {
+  if [[ -f $T3_STATE_FILE ]]; then
+    jq -r '.activeVersion // empty' "$T3_STATE_FILE" 2>/dev/null || true
+  fi
+}
+
+runtime_is_complete() {
+  [[ -n $1 && -f $T3_VERSIONS_DIR/$1/.install-complete ]]
+}
+
+install_missing_tools() {
+  if ! runtime_is_complete "$(staged_t3_version)"; then
+    log "Installing T3 Code ($T3CODE_CHANNEL)..."
+    curl -fsSL https://t3.codes/install.sh | sh
+  fi
+  if ! command -v claude >/dev/null; then
+    log "Installing Claude Code..."
+    { curl -fsSL https://claude.ai/install.sh | bash; } || log "Claude Code failed to install; retrying on the next start."
+  fi
+  if ! command -v codex >/dev/null; then
+    log "Installing Codex..."
+    npm install -g @openai/codex || log "Codex failed to install; retrying on the next start."
+  fi
+  if ! command -v opencode >/dev/null; then
+    log "Installing OpenCode..."
+    npm install -g @opencode/cli || log "OpenCode failed to install; retrying on the next start."
+  fi
+}
+
+# On first start, tells the service launcher which T3 Code version to run. After
+# that the launcher owns this file: in-app updates switch versions and roll back.
+activate_t3() {
+  if ! runtime_is_complete "$(active_t3_version)"; then
+    mkdir -p "$(dirname "$T3_STATE_FILE")"
+    printf '{"protocol":%d,"activeVersion":"%s"}\n' "$T3_LAUNCHER_PROTOCOL" "$(staged_t3_version)" >"$T3_STATE_FILE"
+  fi
+  # Keep the `t3` command on the version the server runs.
+  ln -sfn "$T3_VERSIONS_DIR/$(active_t3_version)/t3" "$T3_CLI_LINK"
+}
+
+# Clones or fast-forwards the skills repository. Never discards local changes:
+# a clone that cannot fast-forward is reported and left alone.
+sync_skills() {
+  if [[ ! -d $SKILLS_CLONE/.git ]]; then
+    git clone --quiet "$T3CODE_DOCKER_SKILLS_REPO" "$SKILLS_CLONE" || return 1
+    log "Cloned skills from $T3CODE_DOCKER_SKILLS_REPO."
+    return 0
+  fi
+  git -C "$SKILLS_CLONE" remote set-url origin "$T3CODE_DOCKER_SKILLS_REPO"
+  git -C "$SKILLS_CLONE" pull --quiet --ff-only
+}
+
+# Points ~/.claude/skills (Claude Code, OpenCode) and ~/.agents/skills (Codex,
+# OpenCode) at the skills folder. A real directory already there is left alone.
+link_skills() {
+  local target=$SKILLS_CLONE/$T3CODE_DOCKER_SKILLS_PATH link
+  for link in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
+    if [[ -e $link && ! -L $link ]]; then
+      log "Not linking $link: it is a real directory. Move it aside to use the skills repository."
+      continue
+    fi
+    mkdir -p "$(dirname "$link")"
+    ln -sfn "$target" "$link"
+  done
+}
+
+start_skills_sync() {
+  local interval=$T3CODE_DOCKER_SKILLS_INTERVAL
+  [[ -n ${T3CODE_DOCKER_SKILLS_REPO:-} ]] || return 0
+  if [[ ! $interval =~ ^[0-9]+$ || $interval -lt 30 ]]; then
+    log "T3CODE_DOCKER_SKILLS_INTERVAL must be a number of seconds, 30 or more; using 300."
+    interval=300
+  fi
+
+  link_skills
+  log "Syncing skills from $T3CODE_DOCKER_SKILLS_REPO every ${interval}s."
+  # Runs in the background so a slow or unreachable remote never delays the
+  # server. The clone persists in the data volume, so only the first start waits.
+  (
+    while :; do
+      sync_skills || log "Skills sync failed; retrying in ${interval}s. Check the SSH key and T3CODE_DOCKER_SKILLS_REPO."
+      sleep "$interval"
+    done
+  ) &
+}
+
+mkdir -p "$HOME/.local/bin" "$T3_USERDATA"
+import_ssh
+start_ssh_agent
+check_git_config
+import_t3_settings
+install_missing_tools
+activate_t3
+start_skills_sync
+cd "$HOME"
+
+runtime="$T3_VERSIONS_DIR/$(active_t3_version)/t3"
+log "Starting T3 Code $(active_t3_version)."
+if [[ $T3CODE_DOCKER_SERVICE_LAUNCHER == true ]]; then
+  exec "$runtime" __service-launcher
+fi
+exec "$runtime" serve

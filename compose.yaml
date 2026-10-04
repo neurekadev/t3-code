@@ -1,0 +1,20 @@
+services:
+  t3code:
+    build: .
+    container_name: t3code
+    env_file: [.env]
+    # Host networking lets desktop web previews reach any dev server port an agent
+    # starts (5173, 3000, 8080, ...) at the server's address, with no port list to keep.
+    network_mode: host
+    volumes:
+      - data:/app/data
+      - cache:/app/cache
+      # Optional SSH keys, git config and T3 Code settings; see README.
+      - ./import:/app/import:ro
+    restart: unless-stopped
+    # Gives the launcher time to stop agents and terminals cleanly.
+    stop_grace_period: 1m
+
+volumes:
+  data:
+  cache:
