@@ -88,13 +88,17 @@ RUN sed -i -E "s#^(root:([^:]*:){4})[^:]*#\1$HOME#" /etc/passwd \
 
 COPY config/mise.toml /app/config/mise.toml
 # Toolchains install into the image, not the data volume, so a rebuild replaces
-# them. A throwaway HOME keeps installers from writing into the volume skeleton.
+# them. A throwaway HOME keeps installers from writing into the volume skeleton;
+# it must exist, because mise silently ignores every config file without it.
 # MISE_YES is set for this build step only: at runtime it would also auto-answer
 # mise's trust prompt, letting any cloned project's mise.toml run commands.
 RUN --mount=type=cache,target=/app/cache \
     sed -i 's/\r$//' /app/config/mise.toml \
  && ln -s /app/config/mise.toml /etc/mise/config.toml \
  && export HOME=/tmp/build-home MISE_YES=1 \
+ && mkdir -p "$HOME" \
+ && { mise config ls | grep '^/etc/mise/config.toml' >/dev/null \
+      || { echo "mise did not load /etc/mise/config.toml" >&2; exit 1; }; } \
  && mise install node \
  && mise install \
  && mise exec -- corepack enable --install-directory /app/lib/corepack yarn pnpm \
