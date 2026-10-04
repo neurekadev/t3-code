@@ -43,7 +43,12 @@ RUN curl -fsSL https://api.github.com/meta \
       '[core]' '	sshCommand = ssh' \
       '[gpg "ssh"]' '	program = ssh-keygen' >>/etc/gitconfig
 
-RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+# mise 2026.10.1 stops reading /etc/mise/config.toml, so the toolchain step
+# below would install nothing. Raise this pin once a release reads it again;
+# that step fails the build if it does not.
+ARG MISE_VERSION=v2026.9.17
+RUN curl -fsSL https://mise.run \
+      | MISE_VERSION=$MISE_VERSION MISE_INSTALL_PATH=/usr/local/bin/mise sh
 
 WORKDIR /app
 
@@ -87,8 +92,14 @@ RUN sed -i -E "s#^(root:([^:]*:){4})[^:]*#\1$HOME#" /etc/passwd \
  && chmod 700 "$HOME"
 
 COPY config/mise.toml /app/config/mise.toml
-# TEMP DIAGNOSTICS (issue #7)
-RUN sed -i 's/$//' /app/config/mise.toml  && cp /app/config/mise.toml /etc/mise/config.toml  && export HOME=/tmp/diag-home  && set -x  && env | sort | grep -vE 'TOKEN|SECRET' ;     MISE_TRACE=1 mise config ls 2>&1 | head -150; echo "exit=$?";     mkdir -p /tmp/proj && cp /app/config/mise.toml /tmp/proj/mise.toml && (cd /tmp/proj && mise config ls; mise ls --missing | head);     curl -fsSL https://mise.run | MISE_VERSION=v2026.9.17 MISE_INSTALL_PATH=/tmp/mise-old sh; /tmp/mise-old --version; /tmp/mise-old config ls; /tmp/mise-old ls --missing | head;     rm -rf /tmp/diag-home /tmp/proj /tmp/mise-old /etc/mise/config.toml; true
+# TEMP PROBE (issue #7)
+RUN sed -i 's/\r$//' /app/config/mise.toml \
+ && ln -s /app/config/mise.toml /etc/mise/config.toml \
+ && export HOME=/tmp/probe-home \
+ && for v in v2026.9.18 v2026.10.0 v2026.10.1 v2026.10.2; do \
+      curl -fsSL https://mise.run | MISE_VERSION=$v MISE_INSTALL_PATH=/tmp/mise-$v sh >/dev/null 2>&1; \
+      echo "PROBE $v: $(/tmp/mise-$v config ls 2>&1 | cut -c1-40 | tr '\n' ' ')"; \
+    done; rm -rf /tmp/mise-v* /tmp/probe-home /etc/mise/config.toml
 # Toolchains install into the image, not the data volume, so a rebuild replaces
 # them. A throwaway HOME keeps installers from writing into the volume skeleton.
 # MISE_YES is set for this build step only: at runtime it would also auto-answer
@@ -97,6 +108,8 @@ RUN --mount=type=cache,target=/app/cache \
     sed -i 's/\r$//' /app/config/mise.toml \
  && ln -s /app/config/mise.toml /etc/mise/config.toml \
  && export HOME=/tmp/build-home MISE_YES=1 \
+ && { mise config ls | grep '^/etc/mise/config.toml' >/dev/null \
+      || { echo "mise $(mise --version) did not load /etc/mise/config.toml" >&2; exit 1; }; } \
  && mise install node \
  && mise install \
  && mise exec -- corepack enable --install-directory /app/lib/corepack yarn pnpm \
