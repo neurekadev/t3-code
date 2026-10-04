@@ -77,8 +77,11 @@ ENV HOME=/app/data/home \
 ENV PATH=$HOME/.local/bin:/app/lib/corepack:$MISE_DATA_DIR/shims:$DOTNET_ROOT:$HOME/.dotnet/tools:$CARGO_HOME/bin:$HOME/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Root's passwd home must match HOME: OpenSSH resolves ~/.ssh from passwd, not $HOME.
+# The passwd field is edited directly because usermod refuses to modify a user
+# with running processes, and this RUN step itself runs as root.
 # Docker seeds a new /app/data volume from this skeleton on first use.
-RUN usermod -d "$HOME" root \
+RUN sed -i -E "s#^(root:([^:]*:){4})[^:]*#\1$HOME#" /etc/passwd \
+ && [ "$(getent passwd root | cut -d: -f6)" = "$HOME" ] \
  && mkdir -p "$HOME/.local/bin" "$T3CODE_HOME" /app/import /app/cache /app/lib/corepack /etc/mise \
  && cp -a /etc/skel/. "$HOME/" \
  && chmod 700 "$HOME"
