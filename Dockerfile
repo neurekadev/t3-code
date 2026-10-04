@@ -43,12 +43,7 @@ RUN curl -fsSL https://api.github.com/meta \
       '[core]' '	sshCommand = ssh' \
       '[gpg "ssh"]' '	program = ssh-keygen' >>/etc/gitconfig
 
-# mise 2026.10.1 stops reading /etc/mise/config.toml, so the toolchain step
-# below would install nothing. Raise this pin once a release reads it again;
-# that step fails the build if it does not.
-ARG MISE_VERSION=v2026.9.17
-RUN curl -fsSL https://mise.run \
-      | MISE_VERSION=$MISE_VERSION MISE_INSTALL_PATH=/usr/local/bin/mise sh
+RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
 
 WORKDIR /app
 
@@ -92,39 +87,18 @@ RUN sed -i -E "s#^(root:([^:]*:){4})[^:]*#\1$HOME#" /etc/passwd \
  && chmod 700 "$HOME"
 
 COPY config/mise.toml /app/config/mise.toml
-# TEMP PROBE (issue #7)
-RUN <<'EOF'
-sed -i 's/\r$//' /app/config/mise.toml
-for v in v2026.9.17 v2026.10.1 v2026.10.2; do
-  curl -fsSL https://mise.run | MISE_VERSION=$v MISE_INSTALL_PATH=/tmp/mise-$v sh >/dev/null 2>&1
-  for mode in symlink copy envfile; do
-    for dir in /app /; do
-      rm -rf /tmp/ph /etc/mise/config.toml; unset MISE_SYSTEM_CONFIG_FILE
-      case $mode in
-        symlink) ln -s /app/config/mise.toml /etc/mise/config.toml ;;
-        copy) cp /app/config/mise.toml /etc/mise/config.toml ;;
-        envfile) export MISE_SYSTEM_CONFIG_FILE=/app/config/mise.toml ;;
-      esac
-      out=$(cd $dir && HOME=/tmp/ph /tmp/mise-$v config ls 2>&1 | cut -c1-30 | tr '\n' ' ')
-      echo "PROBE $v $mode cwd=$dir: [$out]"
-    done
-  done
-  rm -rf /tmp/ph /etc/mise/config.toml; unset MISE_SYSTEM_CONFIG_FILE
-  ln -s /app/config/mise.toml /etc/mise/config.toml
-  (cd /app && HOME=/tmp/ph MISE_DEBUG=1 /tmp/mise-$v config ls 2>&1 | grep -iE 'trust|ignor|canonical|etc/mise|app/config|untrusted|error' | head -20 | sed "s|^|PROBE $v debug: |")
-done
-rm -rf /tmp/mise-v* /tmp/ph /etc/mise/config.toml
-EOF
 # Toolchains install into the image, not the data volume, so a rebuild replaces
-# them. A throwaway HOME keeps installers from writing into the volume skeleton.
+# them. A throwaway HOME keeps installers from writing into the volume skeleton;
+# it must exist, because mise silently ignores every config file without it.
 # MISE_YES is set for this build step only: at runtime it would also auto-answer
 # mise's trust prompt, letting any cloned project's mise.toml run commands.
 RUN --mount=type=cache,target=/app/cache \
     sed -i 's/\r$//' /app/config/mise.toml \
  && ln -s /app/config/mise.toml /etc/mise/config.toml \
  && export HOME=/tmp/build-home MISE_YES=1 \
+ && mkdir -p "$HOME" \
  && { mise config ls | grep '^/etc/mise/config.toml' >/dev/null \
-      || { echo "mise $(mise --version) did not load /etc/mise/config.toml" >&2; exit 1; }; } \
+      || { echo "mise did not load /etc/mise/config.toml" >&2; exit 1; }; } \
  && mise install node \
  && mise install \
  && mise exec -- corepack enable --install-directory /app/lib/corepack yarn pnpm \
