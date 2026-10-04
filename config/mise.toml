@@ -1,8 +1,9 @@
 # Language toolchains and developer CLIs baked into the image, installed by mise
 # (https://mise.jdx.dev). What each one is for: TOOLS.md.
 #
-# Each entry is pinned to a major version. An image build installs the newest
-# release within that major; a running container never updates them.
+# Each entry is pinned to a major version. The first image build each week
+# installs the newest release within that major; a running container never
+# updates them.
 # To add a tool or raise a major, edit this file and push to main: CI publishes
 # a new image.
 #

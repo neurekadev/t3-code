@@ -83,6 +83,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
+      # OS packages and toolchains reinstall on the first build of each ISO week;
+      # later builds that week reuse the cached layers.
+      - name: Set Toolchain Refresh Week
+        id: refresh
+        run: echo "week=$(date -u +%G-W%V)" >>"$GITHUB_OUTPUT"
       - name: Extract Image Metadata
         id: meta
         uses: docker/metadata-action@v6
@@ -98,6 +103,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           build-args: |
+            BUILD_REFRESH=${{ steps.refresh.outputs.week }}
             GIT_TAG=${{ env.SOURCE_VERSION }}
             GIT_HASH=${{ github.sha }}
           platforms: ${{ matrix.platform }}
@@ -114,6 +120,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           build-args: |
+            BUILD_REFRESH=${{ steps.refresh.outputs.week }}
             GIT_TAG=${{ env.SOURCE_VERSION }}
             GIT_HASH=${{ github.sha }}
           platforms: ${{ matrix.platform }}
