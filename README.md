@@ -12,8 +12,8 @@ Every installed tool is listed in [TOOLS.md](TOOLS.md).
 Run these on the server, in this folder.
 
 1. **Settings.** Create your `.env` and read through it; every setting is
-   explained inside. Usually you only check `T3CODE_HOST` and the skills
-   repository.
+   explained inside. Usually you only check `T3CODE_DOCKER_BIND_ADDRESS` and
+   the skills repository.
 
    ```bash
    cp .env.example .env
@@ -39,7 +39,8 @@ Run these on the server, in this folder.
 
 5. **Connect your apps.** Scan the QR code with the mobile app, or paste the
    link into the desktop app under **Settings → Connections → Add environment**.
-   If the link shows `0.0.0.0`, replace it with the server's IP.
+   The link shows the container's own address (`0.0.0.0` or `172.x.x.x`);
+   replace it with the server's IP or hostname, keeping port `3773`.
 
    ```bash
    docker exec -it t3code t3 pair
@@ -138,8 +139,14 @@ that are ready to uncomment.
 ## Good to know
 
 - **Web previews** in the desktop app open dev servers at the server's address.
-  Connect through a LAN, Tailscale IP or `*.ts.net` address (not T3 Connect),
-  and have dev servers listen on `0.0.0.0` (e.g. `vite --host`).
+  Connect through a LAN, Tailscale IP or `*.ts.net` address (not T3 Connect).
+  Dev servers must listen on `0.0.0.0` and use a published port: 3000-3010,
+  4200, 5173-5180, 8000-8010 or 8080-8090 (e.g. `vite --host --port 5173`).
+  Change the list in `compose.yaml`.
+- **The container has its own network**, so agents cannot reach services the
+  server only exposes to itself (`127.0.0.1`).
+- **"Port is already allocated" on start** means another service on the server
+  uses one of those ports: remove or change that range in `compose.yaml`.
 - **T3 Connect** works from anywhere without opening ports:
   `docker exec -it t3code t3 connect`.
 - **Your data** lives in the `data` Docker volume: projects, threads, T3 Code

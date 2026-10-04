@@ -20,8 +20,12 @@ Everything installed in the container, what it is for, and how it updates.
 
 Installed by **mise**, a tool version manager. `config/mise.toml` lists each
 tool and version; mise downloads them during the build and puts them on `PATH`.
-Projects with their own `mise.toml` or `.tool-versions` can request other
-versions, which mise installs on first use.
+A project that needs another version can install it with `mise install` in
+that project. Such runtime installs, like `cargo install` binaries, last until
+the container is recreated; to keep a tool, add it to `config/mise.toml`.
+For safety, a project's `mise.toml` that runs commands or sets environment
+variables is refused (mise reports it as untrusted) until you run `mise trust`
+in that project; plain tool versions work without it.
 
 | Tool | What it is | Pinned to |
 |---|---|---|

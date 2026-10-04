@@ -2,10 +2,20 @@ services:
   t3code:
     build: .
     container_name: t3code
+    # A fixed hostname keeps T3 Code's usage history on one host across rebuilds.
+    hostname: t3code
     env_file: [.env]
-    # Host networking lets desktop web previews reach any dev server port an agent
-    # starts (5173, 3000, 8080, ...) at the server's address, with no port list to keep.
-    network_mode: host
+    networks: [t3code]
+    # T3 Code, then the ports the desktop app's web previews can open. A dev
+    # server must listen on 0.0.0.0 and use one of these ports. Edit the list to
+    # add ports, or remove a range that another service on the server already uses.
+    ports:
+      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:3773:3773"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:3000-3010:3000-3010"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:4200:4200"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:5173-5180:5173-5180"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:8000-8010:8000-8010"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:8080-8090:8080-8090"
     volumes:
       - data:/app/data
       - cache:/app/cache
@@ -14,6 +24,10 @@ services:
     restart: unless-stopped
     # Gives the launcher time to stop agents and terminals cleanly.
     stop_grace_period: 1m
+
+networks:
+  t3code:
+    name: t3code
 
 volumes:
   data:

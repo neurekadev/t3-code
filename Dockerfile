@@ -49,6 +49,7 @@ WORKDIR /app
 
 ENV HOME=/app/data/home \
     T3CODE_HOME=/app/data/t3 \
+    T3CODE_HOST=0.0.0.0 \
     T3CODE_PORT=3773 \
     T3CODE_CHANNEL=stable \
     T3CODE_DOCKER_SERVICE_LAUNCHER=true \
@@ -58,8 +59,6 @@ ENV HOME=/app/data/home \
     GIT_TERMINAL_PROMPT=0 \
     MISE_DATA_DIR=/app/lib/mise \
     MISE_CACHE_DIR=/app/cache/mise \
-    MISE_TRUSTED_CONFIG_PATHS=/app/data \
-    MISE_YES=1 \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     DOTNET_ROOT=/app/lib/mise/dotnet-root \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
@@ -87,10 +86,12 @@ RUN usermod -d "$HOME" root \
 COPY config/mise.toml /app/config/mise.toml
 # Toolchains install into the image, not the data volume, so a rebuild replaces
 # them. A throwaway HOME keeps installers from writing into the volume skeleton.
+# MISE_YES is set for this build step only: at runtime it would also auto-answer
+# mise's trust prompt, letting any cloned project's mise.toml run commands.
 RUN --mount=type=cache,target=/app/cache \
     sed -i 's/\r$//' /app/config/mise.toml \
  && ln -s /app/config/mise.toml /etc/mise/config.toml \
- && export HOME=/tmp/build-home \
+ && export HOME=/tmp/build-home MISE_YES=1 \
  && mise install node \
  && mise install \
  && mise exec -- corepack enable --install-directory /app/lib/corepack yarn pnpm \
@@ -105,7 +106,8 @@ ARG GIT_HASH=unknown
 ENV GIT_TAG=$GIT_TAG
 ENV GIT_HASH=$GIT_HASH
 
-EXPOSE 3773
+# T3 Code, then the web-preview ports published by compose.yaml.
+EXPOSE 3773 3000-3010 4200 5173-5180 8000-8010 8080-8090
 VOLUME ["/app/data", "/app/cache"]
 
 # tini reaps the orphaned processes agents leave behind and forwards stop signals.
