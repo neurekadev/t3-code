@@ -1,0 +1,237 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+permissions: {}
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  # Tag pushes and every run on the default branch publish; other manual runs only build.
+  PUBLISH: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+  SOURCE_VERSION: ${{ (github.event_name == 'push' && github.ref_type == 'tag') && github.ref_name || (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && 'edge' || 'dev') }}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Run ShellCheck
+        run: shellcheck bin/t3code-entrypoint
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Run Unit Tests
+        run: echo "This repository has no unit tests yet."
+
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: T3 Code AMD64
+            component: t3-code
+            arch: amd64
+            runner: ubuntu-24.04
+            platform: linux/amd64
+            context: .
+            dockerfile: Dockerfile
+          - name: T3 Code ARM64
+            component: t3-code
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            context: .
+            dockerfile: Dockerfile
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log In to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      # OS packages and toolchains reinstall on the first build of each ISO week;
+      # later builds that week reuse the cached layers.
+      - name: Set Toolchain Refresh Week
+        id: refresh
+        run: echo "week=$(date -u +%G-W%V)" >>"$GITHUB_OUTPUT"
+      - name: Extract Image Metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.version=${{ env.SOURCE_VERSION }}
+      - name: Build and Push Image Digest
+        id: push
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-args: |
+            BUILD_REFRESH=${{ steps.refresh.outputs.week }}
+            GIT_TAG=${{ env.SOURCE_VERSION }}
+            GIT_HASH=${{ github.sha }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=publish-${{ matrix.component }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=publish-${{ matrix.component }}-${{ matrix.arch }},mode=max,ignore-error=true
+      - name: Build Image
+        if: env.PUBLISH != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-args: |
+            BUILD_REFRESH=${{ steps.refresh.outputs.week }}
+            GIT_TAG=${{ env.SOURCE_VERSION }}
+            GIT_HASH=${{ github.sha }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: false
+          provenance: false
+          sbom: false
+          cache-from: |
+            type=gha,scope=ci-${{ matrix.component }}-${{ matrix.arch }}
+            type=gha,scope=publish-${{ matrix.component }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=ci-${{ matrix.component }}-${{ matrix.arch }},mode=max,ignore-error=true
+      - name: Export Digest
+        if: env.PUBLISH == 'true'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          [[ $DIGEST == sha256:?* ]] || { echo "Build produced no image digest." >&2; exit 1; }
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - name: Upload Digest
+        if: env.PUBLISH == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.component }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Publish Image
+    if: (github.event_name == 'push' && github.ref_type == 'tag') || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs:
+      - lint
+      - unit-tests
+      - build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download Digests
+        uses: actions/download-artifact@v8
+        with:
+          pattern: digests-t3-code-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log In to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Extract Image Metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=edge,branch=${{ github.event.repository.default_branch }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+          annotations: |
+            org.opencontainers.image.version=${{ env.SOURCE_VERSION }}
+      - name: Create Multi-Platform Manifest
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          mapfile -t tags < <(jq -r '.tags[] | "--tag=" + .' <<<"$DOCKER_METADATA_OUTPUT_JSON")
+          mapfile -t annotations < <(jq -r '.annotations[] | "--annotation=" + .' <<<"$DOCKER_METADATA_OUTPUT_JSON")
+          sources=()
+          for digest in *; do
+            sources+=("$IMAGE@sha256:$digest")
+          done
+          docker buildx imagetools create "${tags[@]}" "${annotations[@]}" "${sources[@]}"
+      - name: Verify Published Platforms
+        env:
+          TAG: ${{ steps.meta.outputs.version }}
+        run: |
+          platforms=$(docker buildx imagetools inspect --raw "$IMAGE:$TAG" \
+            | jq -r '[.manifests[].platform | select(.os != "unknown") | .os + "/" + .architecture] | sort | join(" ")')
+          echo "$IMAGE:$TAG platforms: $platforms"
+          [[ $platforms == "linux/amd64 linux/arm64" ]]
+
+  release:
+    name: Release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs:
+      - lint
+      - unit-tests
+      - build
+      - publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Check Out Repository History
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Create Release
+        uses: neurekadev/create-release-action@2
+        with:
+          github-token: ${{ github.token }}
+          api-key: ${{ secrets.INFERENCE_API_KEY }}
+          base-url: https://api.openai.com/v1
+          model: gpt-5.6-luna
+          reasoning-effort: xhigh
