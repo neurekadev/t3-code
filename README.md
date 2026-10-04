@@ -12,8 +12,8 @@ Every installed tool is listed in [TOOLS.md](TOOLS.md).
 Run these on the server, in this folder.
 
 1. **Settings.** Create your `.env` and read through it; every setting is
-   explained inside. Usually you only check `T3CODE_DOCKER_BIND_ADDRESS` and
-   the skills repository.
+   explained inside. You must fill in `T3CODE_DOCKER_BIND_ADDRESS` (which
+   network can reach T3 Code); also check the skills repository.
 
    ```bash
    cp .env.example .env
@@ -144,8 +144,9 @@ At boot, Docker can start before that address exists, and the container would
 then stay down. Run this once on the server so it always comes back:
 
 ```bash
-# Let Docker bind the address before it exists
-echo 'net.ipv4.ip_nonlocal_bind = 1' | sudo tee /etc/sysctl.d/90-t3code-bind.conf
+# Let Docker bind the address before it exists (IPv4 and IPv6)
+printf 'net.ipv4.ip_nonlocal_bind = 1\nnet.ipv6.ip_nonlocal_bind = 1\n' \
+  | sudo tee /etc/sysctl.d/90-t3code-bind.conf
 sudo sysctl --system
 
 # Tailscale only: start Docker after Tailscale
