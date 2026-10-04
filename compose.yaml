@@ -9,13 +9,15 @@ services:
     # T3 Code, then the ports the desktop app's web previews can open. A dev
     # server must listen on 0.0.0.0 and use one of these ports. Edit the list to
     # add ports, or remove a range that another service on the server already uses.
+    # Docker publishes these past the server's firewall (ufw/firewalld), so the
+    # bind address must be chosen explicitly in .env; see .env.example.
     ports:
-      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:3773:3773"
-      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:3000-3010:3000-3010"
-      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:4200:4200"
-      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:5173-5180:5173-5180"
-      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:8000-8010:8000-8010"
-      - "${T3CODE_DOCKER_BIND_ADDRESS:-0.0.0.0}:8080-8090:8080-8090"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:?set T3CODE_DOCKER_BIND_ADDRESS in .env}:3773:3773"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:?}:3000-3010:3000-3010"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:?}:4200:4200"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:?}:5173-5180:5173-5180"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:?}:8000-8010:8000-8010"
+      - "${T3CODE_DOCKER_BIND_ADDRESS:?}:8080-8090:8080-8090"
     volumes:
       - data:/app/data
       - cache:/app/cache

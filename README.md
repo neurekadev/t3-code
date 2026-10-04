@@ -136,6 +136,27 @@ lists each tool and its version, and mise installs them during the build.
 Then run the refresh rebuild above. [TOOLS.md](TOOLS.md) lists optional tools
 that are ready to uncomment.
 
+## Limit access to one network
+
+To make T3 Code reachable only over Tailscale or your home network, set
+`T3CODE_DOCKER_BIND_ADDRESS` in `.env` to the server's Tailscale or LAN IP.
+At boot, Docker can start before that address exists, and the container would
+then stay down. Run this once on the server so it always comes back:
+
+```bash
+# Let Docker bind the address before it exists
+echo 'net.ipv4.ip_nonlocal_bind = 1' | sudo tee /etc/sysctl.d/90-t3code-bind.conf
+sudo sysctl --system
+
+# Tailscale only: start Docker after Tailscale
+sudo mkdir -p /etc/systemd/system/docker.service.d
+printf '[Unit]\nAfter=tailscaled.service\nWants=tailscaled.service\n' \
+  | sudo tee /etc/systemd/system/docker.service.d/10-after-tailscale.conf
+sudo systemctl daemon-reload
+```
+
+After the next reboot, `docker port t3code` should list port 3773.
+
 ## Good to know
 
 - **Web previews** in the desktop app open dev servers at the server's address.
@@ -144,7 +165,9 @@ that are ready to uncomment.
   4200, 5173-5180, 8000-8010 or 8080-8090 (e.g. `vite --host --port 5173`).
   Change the list in `compose.yaml`.
 - **The container has its own network**, so agents cannot reach services the
-  server only exposes to itself (`127.0.0.1`).
+  server only exposes to itself (`127.0.0.1`). Its published ports bypass the
+  server's firewall (ufw/firewalld); `T3CODE_DOCKER_BIND_ADDRESS` decides who
+  can reach them.
 - **"Port is already allocated" on start** means another service on the server
   uses one of those ports: remove or change that range in `compose.yaml`.
 - **T3 Connect** works from anywhere without opening ports:
