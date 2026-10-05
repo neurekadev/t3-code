@@ -24,18 +24,23 @@ check_host() {
       echo "Can't tell the server's address from ${host:-an unset bind address}." >&2
       echo "Pass it in: t3code-pair --host <server IP or hostname>" >&2
       exit 1 ;;
+    */* | *\]*:* | \[*[!\]])
+      bad_host ;;
     \[*\]) ;;
     *:*:*) host="[$host]" ;;
-    */* | *:*)
-      echo "--host takes only an IP or hostname, without a scheme or port: $host" >&2
-      exit 1 ;;
+    *:*) bad_host ;;
   esac
+}
+
+bad_host() {
+  echo "--host takes only an IP or hostname, without a scheme or port: $host" >&2
+  exit 1
 }
 
 # Check before minting a token, unless Tailscale (which needs no host) is asked for.
 tailscale=false
 for arg in "${args[@]}"; do
-  [[ $arg == --tailscale* ]] && tailscale=true
+  [[ $arg == --tailscale || $arg == --tailscale=* ]] && tailscale=true
 done
 $tailscale || check_host
 
