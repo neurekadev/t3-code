@@ -121,6 +121,10 @@ work. Start from the examples:
 | [`import/ssh/config.example`](./import/ssh/config.example) | `import/ssh/config` |
 | [`import/gitconfig.example`](./import/gitconfig.example) | `import/gitconfig` |
 
+Every start logs what was imported and what was skipped, with the reason; a
+misplaced or invalid file is skipped rather than breaking git. Check with
+`docker compose logs t3code`.
+
 Windows paths in your own `.gitconfig` for `core.sshCommand` and
 `gpg.ssh.program` are fixed automatically. Provider secrets are not stored in
 `settings.json`; enter them again under **Settings → Providers**.

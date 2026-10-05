@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prepares the container on every start, then runs T3 Code's service launcher:
-#   1. Applies files from the import folder: SSH keys, T3 settings. (Git reads
-#      import/gitconfig directly through /etc/gitconfig.)
+#   1. Checks and applies the import folder: SSH keys, git config, T3 settings.
+#      Misplaced or invalid imports are logged and skipped.
 #   2. Starts an SSH agent holding the imported keys (clone, push, signing, ssh).
 #   3. Installs T3 Code, Claude Code, Codex and OpenCode if they are missing.
 #      Installed tools are never updated here; updates come from the T3 Code app.
@@ -9,6 +9,8 @@
 set -euo pipefail
 
 IMPORT_DIR=/app/import
+# Must match the include path in the Dockerfile's /etc/gitconfig.
+GIT_IMPORT_LINK=/run/t3code/gitconfig
 T3_USERDATA="$T3CODE_HOME/userdata"
 T3_STATE_FILE="$T3CODE_HOME/runtime/service-state.json"
 T3_VERSIONS_DIR="$T3CODE_HOME/runtime/versions"
@@ -27,16 +29,28 @@ is_private_key() {
 
 # Copies import/ssh into ~/.ssh with the permissions OpenSSH requires. Windows
 # line endings are stripped. The imported config is prefixed so ssh always uses
-# this container's agent, overriding Windows-only IdentityAgent pipes.
+# this container's agent, overriding Windows-only IdentityAgent pipes. The
+# repository's *.example files are templates, not imports.
 import_ssh() {
-  local source=$IMPORT_DIR/ssh file name mode
-  [[ -d $source ]] || return 0
+  local source=$IMPORT_DIR/ssh file name mode imported=()
+  if [[ ! -e $source ]]; then
+    log "No import/ssh folder; no SSH files imported."
+    return 0
+  elif [[ ! -d $source ]]; then
+    log "Ignoring import/ssh: it must be a folder."
+    return 0
+  fi
   mkdir -p "$HOME/.ssh"
   chmod 700 "$HOME/.ssh"
 
   for file in "$source"/*; do
-    [[ -f $file ]] || continue
     name=$(basename "$file")
+    [[ -e $file && $name != *.example ]] || continue
+    if [[ ! -f $file ]]; then
+      log "Ignoring import/ssh/$name: it must be a file, not a folder."
+      continue
+    fi
+    imported+=("$name")
     if [[ $name == config ]]; then
       {
         printf '# Generated from import/ssh/config on container start; edit that file instead.\n'
@@ -51,7 +65,11 @@ import_ssh() {
     tr -d '\r' <"$file" >"$HOME/.ssh/$name"
     chmod "$mode" "$HOME/.ssh/$name"
   done
-  log "Imported SSH files from import/ssh."
+  if ((${#imported[@]})); then
+    log "Imported SSH files from import/ssh: ${imported[*]}."
+  else
+    log "import/ssh has no files; no SSH files imported."
+  fi
 }
 
 start_ssh_agent() {
@@ -73,13 +91,30 @@ start_ssh_agent() {
   log "SSH agent ready with $loaded key(s)."
 }
 
-# /etc/gitconfig (built into the image) includes import/gitconfig and replaces
-# Windows-only programs. Warn about any other Windows paths it still contains.
-check_git_config() {
-  local imported=$IMPORT_DIR/gitconfig
+# /etc/gitconfig (built into the image) includes GIT_IMPORT_LINK and replaces
+# Windows-only programs. The link points at import/gitconfig only while git can
+# parse it, so a broken import cannot make every git command fail. Edits are
+# still read live. Warn about any other Windows paths it contains.
+import_git_config() {
+  local imported=$IMPORT_DIR/gitconfig error
   # A drive letter must not follow another letter, so URLs (https://) don't match.
   local windows_path='(^|[^a-z0-9])[a-z]:[\\/]|\.exe'
-  if [[ -f $imported ]] && grep -qiE "$windows_path" "$imported"; then
+  rm -f "$GIT_IMPORT_LINK"
+  if [[ ! -e $imported ]]; then
+    log "No import/gitconfig; no git config imported."
+    return 0
+  elif [[ ! -f $imported ]]; then
+    log "Ignoring import/gitconfig: it must be your .gitconfig file itself, not a folder."
+    return 0
+  fi
+  if ! error=$(git config --file "$imported" --list 2>&1 >/dev/null); then
+    log "Ignoring import/gitconfig: ${error#fatal: }"
+    return 0
+  fi
+  mkdir -p "$(dirname "$GIT_IMPORT_LINK")"
+  ln -s "$imported" "$GIT_IMPORT_LINK"
+  log "Imported git config from import/gitconfig."
+  if grep -qiE "$windows_path" "$imported"; then
     log "import/gitconfig has Windows paths in:" \
       "$(grep -iE "$windows_path" "$imported" | sed -E 's/^\s*([^= ]+).*/\1/' | tr '\n' ' ')"
     log "core.sshCommand and gpg.ssh.program are replaced automatically; fix any others."
@@ -89,20 +124,36 @@ check_git_config() {
 # Copies import/t3 into T3 Code's userdata. Each file is applied again only when
 # its imported copy changes, so later edits made in the app are kept.
 import_t3_settings() {
-  local source=$IMPORT_DIR/t3 file relative target marker checksum
-  [[ -d $source ]] || return 0
+  local source=$IMPORT_DIR/t3 file relative target marker checksum found=0
+  if [[ ! -e $source ]]; then
+    log "No import/t3 folder; no T3 Code settings imported."
+    return 0
+  elif [[ ! -d $source ]]; then
+    log "Ignoring import/t3: it must be a folder."
+    return 0
+  fi
   while IFS= read -r -d '' file; do
     relative=${file#"$source"/}
-    [[ $relative == settings.json || $relative == keybindings.json || $relative == themes/*.json ]] || continue
+    if [[ $relative != settings.json && $relative != keybindings.json && $relative != themes/*.json ]]; then
+      log "Ignoring import/t3/$relative: expected settings.json, keybindings.json or themes/*.json."
+      continue
+    fi
+    found=$((found + 1))
     target=$T3_USERDATA/$relative
     marker=$T3_USERDATA/.imported/$relative.sha256
     checksum=$(sha256sum "$file" | cut -d' ' -f1)
-    [[ -f $marker && $(cat "$marker") == "$checksum" ]] && continue
+    if [[ -f $marker && $(cat "$marker") == "$checksum" ]]; then
+      log "Kept T3 Code $relative: import/t3 copy unchanged since it was last applied."
+      continue
+    fi
     mkdir -p "$(dirname "$target")" "$(dirname "$marker")"
     cp "$file" "$target"
     printf '%s\n' "$checksum" >"$marker"
     log "Imported T3 Code $relative."
-  done < <(find "$source" -type f -print0)
+  done < <(find "$source" -type f ! -name '.*' -print0)
+  if ((found == 0)); then
+    log "import/t3 has no T3 Code settings; none imported."
+  fi
 }
 
 # Prints the version the `t3` symlink points at; empty before the first install.
@@ -203,7 +254,7 @@ start_skills_sync() {
 mkdir -p "$HOME/.local/bin" "$T3_USERDATA"
 import_ssh
 start_ssh_agent
-check_git_config
+import_git_config
 import_t3_settings
 install_missing_tools
 activate_t3
