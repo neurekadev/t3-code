@@ -42,8 +42,8 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
    docker exec -it t3code opencode auth login
    ```
 
-5. Sign in to GitHub, so T3 Code can clone your repositories and agents can
-   open pull requests:
+5. Optional: sign in to GitHub, so T3 Code can clone your private repositories
+   and agents can open pull requests:
 
    ```bash
    docker exec -it t3code gh auth login
@@ -51,7 +51,7 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
 
    Pick **GitHub.com**, then **Login with a web browser**, and open the link it
    prints on any device. T3 Code clones over HTTPS, which uses this login, not
-   your SSH key.
+   your SSH key. Public repositories and other git hosts don't need it.
 
 6. Connect your apps, either directly or through T3 Connect:
 
