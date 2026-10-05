@@ -33,9 +33,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # for git password prompts: they fail instead of waiting forever.)
 #
 # Git: the system config includes your import/gitconfig (through a file the
-# entrypoint writes only when it is valid), then swaps Windows-only programs for their
-# Linux equivalents. ~/.gitconfig (`git config --global`) is read later and
-# overrides both.
+# entrypoint writes only when it is valid), then swaps Windows-only programs
+# for their Linux equivalents. ~/.gitconfig (`git config --global`) is read
+# later and overrides both.
 RUN curl -fsSL https://api.github.com/meta \
       | jq -r '.ssh_keys[] | "github.com " + .' >/etc/ssh/ssh_known_hosts \
  && printf 'StrictHostKeyChecking accept-new\n' >/etc/ssh/ssh_config.d/10-t3code.conf \

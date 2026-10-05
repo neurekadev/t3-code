@@ -123,9 +123,10 @@ work. Start from the examples:
 
 Every start logs what was imported and what was skipped, with the reason; a
 misplaced or invalid file is skipped rather than breaking git. Check with
-`docker compose logs t3code`. Edits to `import/gitconfig` apply right away but
-are only checked on the next start, so an edit that breaks it breaks git until
-you fix it or restart.
+`docker compose logs t3code`. Adding or fixing `import/gitconfig` takes a
+restart. Edits to one that was valid at start apply right away but are only
+checked on the next start, so an edit that breaks it breaks git until you fix
+it or restart.
 
 Windows paths in your own `.gitconfig` for `core.sshCommand` and
 `gpg.ssh.program` are fixed automatically. Provider secrets are not stored in

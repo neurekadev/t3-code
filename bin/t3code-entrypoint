@@ -72,8 +72,10 @@ import_ssh() {
   fi
 }
 
+# Loads every private key in ~/.ssh, including keys imported on earlier starts
+# that are no longer in import/ssh, so the log names each one.
 start_ssh_agent() {
-  local key loaded=0
+  local key loaded=()
   mkdir -p "$(dirname "$SSH_AUTH_SOCK")"
   rm -f "$SSH_AUTH_SOCK"
   ssh-agent -a "$SSH_AUTH_SOCK" >/dev/null
@@ -83,21 +85,38 @@ start_ssh_agent() {
       continue
     fi
     if ssh-add -q "$key" </dev/null 2>/dev/null; then
-      loaded=$((loaded + 1))
+      loaded+=("$(basename "$key")")
     else
       log "Could not load SSH key $(basename "$key"); keys with a passphrase are not supported."
     fi
   done
-  log "SSH agent ready with $loaded key(s)."
+  if ((${#loaded[@]})); then
+    log "SSH agent ready with ${#loaded[@]} key(s) from ~/.ssh: ${loaded[*]}."
+  else
+    log "SSH agent ready with no keys."
+  fi
+}
+
+# Prints why git rejects a config file, or nothing if git accepts it. The file
+# is loaded on its own, with the includes it pulls in, and git checks its core
+# values too, so `autocrlf = maybe` fails here instead of in every git command.
+git_config_error() {
+  local error
+  if [[ -d $1 ]]; then
+    printf '%s is a folder, not a file\n' "$1"
+  elif ! error=$(cd / && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=$1 git var -l 2>&1 >/dev/null); then
+    error=${error##*$'\n'}
+    printf '%s\n' "${error#fatal: }"
+  fi
 }
 
 # /etc/gitconfig (built into the image) includes GIT_IMPORT_INCLUDE and replaces
 # Windows-only programs. That file includes import/gitconfig by its real path
-# (so its relative includes resolve) only if git can parse it at start, so a
+# (so its relative includes resolve) only if git accepts it at start, so a
 # broken import cannot make every git command fail. Later edits are read live
 # without a check. Warn about any other Windows paths it contains.
 import_git_config() {
-  local imported=$IMPORT_DIR/gitconfig error
+  local imported=$IMPORT_DIR/gitconfig error target
   # A drive letter must not follow another letter, so URLs (https://) don't match.
   local windows_path='(^|[^a-z0-9])[a-z]:[\\/]|\.exe'
   rm -f "$GIT_IMPORT_INCLUDE"
@@ -108,8 +127,21 @@ import_git_config() {
     log "Ignoring import/gitconfig: it must be your .gitconfig file itself, not a folder."
     return 0
   fi
-  if ! error=$(git config --file "$imported" --includes --list 2>&1 >/dev/null); then
-    log "Ignoring import/gitconfig: ${error#fatal: }"
+  error=$(git_config_error "$imported")
+  # includeIf files load only in matching repositories, so check each directly.
+  while [[ -z $error ]] && IFS= read -r target; do
+    case $target in
+      "~/"*) target=$HOME/${target#"~/"} ;;
+      /*) ;;
+      *) target=$(dirname "$imported")/$target ;;
+    esac
+    if [[ -e $target ]]; then
+      error=$(git_config_error "$target")
+    fi
+  done < <(GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
+    git config --file "$imported" --get-regexp '^includeif\..*\.path$' 2>/dev/null | cut -d' ' -f2-)
+  if [[ -n $error ]]; then
+    log "Ignoring import/gitconfig: $error"
     return 0
   fi
   mkdir -p "$(dirname "$GIT_IMPORT_INCLUDE")"
@@ -133,6 +165,11 @@ import_t3_settings() {
     log "Ignoring import/t3: it must be a folder."
     return 0
   fi
+  for file in settings.json keybindings.json; do
+    if [[ -d $source/$file ]]; then
+      log "Ignoring import/t3/$file: it must be a file, not a folder."
+    fi
+  done
   while IFS= read -r -d '' file; do
     relative=${file#"$source"/}
     if [[ $relative != settings.json && $relative != keybindings.json && $relative != themes/*.json ]]; then
