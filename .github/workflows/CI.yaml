@@ -33,7 +33,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run ShellCheck
-        run: shellcheck bin/t3code-entrypoint
+        run: shellcheck bin/*
 
   unit-tests:
     name: Unit Tests

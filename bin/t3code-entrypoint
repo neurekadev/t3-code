@@ -308,6 +308,11 @@ cd "$HOME"
 
 runtime="$T3_VERSIONS_DIR/$(active_t3_version)/t3"
 log "Starting T3 Code $(active_t3_version)."
+# T3 Code prints its startup link and QR code with the container's private IP;
+# t3code-links corrects both on their way to the logs. T3 Code still replaces
+# this shell below, so tini keeps signalling it directly.
+exec 2> >(/app/bin/t3code-links >&2)
+exec > >(/app/bin/t3code-links)
 if [[ $T3CODE_DOCKER_SERVICE_LAUNCHER == true ]]; then
   exec "$runtime" __service-launcher
 fi

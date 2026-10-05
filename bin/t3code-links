@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# Corrects the links T3 Code prints. With a wildcard bind, T3 Code builds them
+# from the container's first network interface, a private Docker IP, and has no
+# setting to change that. This swaps in T3CODE_DOCKER_LINK_ADDRESS, else
+# T3CODE_DOCKER_BIND_ADDRESS, and redraws each QR code from the corrected link.
+# Other lines pass through unchanged. The entrypoint passes the server's output
+# through this, and t3code-pair passes `t3 pair`'s.
+# Usage: t3code-links [--host <server IP or hostname>]   filters stdin to stdout
+#        t3code-links --check [--host <server IP or hostname>]
+#          prints the address links will use, or why there is none and exits 1
+set -euo pipefail
+
+check=false
+host=${T3CODE_DOCKER_LINK_ADDRESS:-${T3CODE_DOCKER_BIND_ADDRESS:-}}
+source=T3CODE_DOCKER_BIND_ADDRESS
+[[ -n ${T3CODE_DOCKER_LINK_ADDRESS:-} ]] && source=T3CODE_DOCKER_LINK_ADDRESS
+while (($#)); do
+  case $1 in
+    --check) check=true; shift ;;
+    --host) host=${2:-}; source=--host; shift 2 ;;
+    --host=*) host=${1#--host=}; source=--host; shift ;;
+    *) echo "t3code-links: unknown option $1" >&2; exit 2 ;;
+  esac
+done
+
+# Sets host to an address clients can connect to, bracketing bare IPv6, or sets
+# problem to why it can't.
+problem=
+unknown=false
+case $host in
+  '' | 0.0.0.0 | :: | '[::]')
+    problem="Can't tell the server's address from ${host:-an unset bind address}."
+    unknown=true ;;
+  -* | */* | *\]*:* | \[*[!\]])
+    problem="$source takes only an IP or hostname, without a scheme or port: $host" ;;
+  \[*\]) ;;
+  *:*:*) host="[$host]" ;;
+  *:*)
+    problem="$source takes only an IP or hostname, without a scheme or port: $host" ;;
+esac
+
+if $check; then
+  if [[ -n $problem ]]; then
+    echo "$problem" >&2
+    $unknown && echo "Pass it in: t3code-pair --host <server IP or hostname>, or set T3CODE_DOCKER_LINK_ADDRESS in .env." >&2
+    exit 1
+  fi
+  printf '%s\n' "$host"
+  exit 0
+fi
+
+# Without an address, links name a placeholder and QR codes become this hint.
+if [[ -n $problem ]]; then
+  host='<server IP>'
+  problem="No QR code. $problem
+Set T3CODE_DOCKER_LINK_ADDRESS in .env, or pair with: docker exec -it t3code t3code-pair --host <server IP>"
+fi
+
+# The server writes all its logs through this filter for as long as it runs, so
+# the loop is Perl (perl-base ships with Ubuntu): it reads the pipe in blocks
+# where bash reads it a byte at a time, and a filter that falls behind stalls the
+# server. Stop signals are ignored here and reach T3 Code through tini; the
+# filter ends when T3 Code closes its output. Lines reach the logs once they
+# end with a newline. When T3 Code exits, the container stops at once, so a
+# final line still in the pipe can be lost.
+#
+# `t3 serve` prints its pairing URL, a blank line, then the QR code. `t3 pair`
+# prints a "Pairing with" line, a blank line, the QR code, a blank line, then the
+# pairing URL, so that QR code is held until its URL arrives. Tailscale (https)
+# links already point at the tailnet and pass through.
+IFS= read -r -d '' filter <<'PERL' || true
+use strict;
+use warnings;
+
+my ($host, $problem) = @ARGV;
+$| = 1;
+
+# T3 Code draws QR codes from spaces, █, ▀ and ▄; the top margin row is blank.
+my $qr_line = qr/^(?: |\xE2\x96[\x80\x84\x88])+$/;
+
+# Swaps the host of the line's first plain-http link, keeping its port.
+sub rewrite {
+  my ($line) = @_;
+  $line =~ s{http://(?:\[[^\]]*\]|[^\]/:\s)\[]+)}{http://$host};
+  return $line;
+}
+
+sub draw_qr {
+  my ($url) = @_;
+  if ($problem) {
+    print "$problem\n";
+    return;
+  }
+  my $qr = '';
+  if (open(my $out, '-|', 'qrencode', '-t', 'ANSIUTF8', '-m', '2', $url)) {
+    $qr = do { local $/; <$out> } // '';
+    close $out or $qr = '';
+  }
+  print $qr ne '' ? $qr : "(Could not draw the QR code; use the link.)\n";
+}
+
+my $state = '';    # '' | url (QR code expected) | qr (dropping it) | header | held
+my $url = '';      # corrected link for the QR code being replaced
+my @held;          # `t3 pair` QR code and the blank lines after it
+
+sub flush_held {
+  print map { "$_\n" } @held;
+  @held = ();
+  $state = '';
+}
+
+while (my $line = <STDIN>) {
+  chomp $line;
+  if ($state eq 'url') {
+    if ($line =~ $qr_line) {
+      draw_qr($url);
+      $state = 'qr';
+      next;
+    }
+    if ($line eq '') {
+      print "\n";
+      next;
+    }
+    $state = '';
+  } elsif ($state eq 'qr') {
+    next if $line =~ $qr_line;
+    $state = '';
+  } elsif ($state eq 'header' || $state eq 'held') {
+    if ($line eq '' && !@held) {
+      print "\n";
+      next;
+    }
+    if ($line eq '' || $line =~ $qr_line) {
+      push @held, $line;
+      $state = 'held';
+      next;
+    }
+    if (@held && $line =~ m{^Pairing URL: (http://.*)}) {
+      # Keep the blank lines after the QR code; redraw the code itself.
+      draw_qr(rewrite($1));
+      my $blank = 0;
+      $blank++ while @held && pop(@held) eq '';
+      print "\n" x $blank;
+      @held = ();
+      $state = '';
+      print rewrite($line), "\n";
+      next;
+    }
+    flush_held();
+  }
+
+  if ($line =~ /^(?:Connection string: |Pairing with )/) {
+    print rewrite($line), "\n";
+    $state = 'header' if $line =~ /^Pairing with /;
+  } elsif ($line =~ m{^Pairing URL: (.*)}) {
+    $url = rewrite($1);
+    print "Pairing URL: $url\n";
+    $state = 'url' if $url =~ m{^http://};
+  } else {
+    print "$line\n";
+  }
+}
+flush_held();
+PERL
+
+trap '' INT TERM HUP
+exec perl -e "$filter" -- "$host" "$problem"
