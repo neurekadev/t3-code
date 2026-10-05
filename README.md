@@ -82,16 +82,16 @@ required, because Docker opens these ports past the server's firewall.
 <details>
 <summary>Using a Tailscale or LAN IP? Run this once so the server comes back after a reboot.</summary>
 
+Docker publishes the ports on that exact IP. At boot, Docker often starts
+before Tailscale or DHCP has given the server that IP, so the container fails
+to start and is not retried. This Linux setting lets Docker use the IP before
+it exists; T3 Code becomes reachable as soon as it does. Not needed for
+`0.0.0.0` or Docker Desktop.
+
 ```bash
 printf 'net.ipv4.ip_nonlocal_bind = 1\nnet.ipv6.ip_nonlocal_bind = 1\n' \
   | sudo tee /etc/sysctl.d/90-t3code-bind.conf
 sudo sysctl --system
-
-# Tailscale only: start Docker after Tailscale
-sudo mkdir -p /etc/systemd/system/docker.service.d
-printf '[Unit]\nAfter=tailscaled.service\nWants=tailscaled.service\n' \
-  | sudo tee /etc/systemd/system/docker.service.d/10-after-tailscale.conf
-sudo systemctl daemon-reload
 ```
 
 </details>
