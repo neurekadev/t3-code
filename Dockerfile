@@ -106,8 +106,8 @@ RUN --mount=type=cache,target=/app/cache \
  && mise ls --current \
  && rm -rf /tmp/build-home
 
-COPY --chmod=0755 bin/t3code-entrypoint bin/t3code-pair /app/bin/
-RUN sed -i 's/\r$//' /app/bin/t3code-entrypoint /app/bin/t3code-pair \
+COPY --chmod=0755 bin/t3code-entrypoint bin/t3code-links bin/t3code-pair /app/bin/
+RUN sed -i 's/\r$//' /app/bin/t3code-entrypoint /app/bin/t3code-links /app/bin/t3code-pair \
  && ln -s /app/bin/t3code-pair /usr/local/bin/t3code-pair
 
 ARG GIT_TAG=dev

@@ -45,15 +45,16 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
 5. Connect your apps, either directly or through T3 Connect:
 
    ```bash
-   docker exec -it t3code t3code-pair   # QR code and link for your network
-   docker exec -it t3code t3 connect    # T3 Connect: works from anywhere, no open ports
+   docker compose logs t3code          # QR code and link for your network
+   docker exec -it t3code t3 connect   # T3 Connect: works from anywhere, no open ports
    ```
 
-   Scan the QR code with the mobile app, or paste the link into the desktop app
-   under **Settings → Connections → Add environment**. The link uses
-   `T3CODE_DOCKER_BIND_ADDRESS`; with `0.0.0.0`, name the server yourself:
-   `docker exec -it t3code t3code-pair --host 192.168.1.10`. (Plain `t3 pair`
-   shows the container's private `172.x.x.x` address.)
+   Scan the latest QR code in the logs with the mobile app, or paste its
+   Pairing URL into the desktop app under **Settings → Connections → Add
+   environment**. It works once, within 5 minutes of the start. Pair more
+   devices from a connected app under **Settings → Connections**, or print a
+   new link with `docker exec -it t3code t3code-pair`. With a `0.0.0.0` bind
+   address, see [Bind address](#bind-address) for the link address.
 
 6. In the app, turn on **Settings → General → Continue threads after restarts**.
 
@@ -78,6 +79,11 @@ required, because Docker opens these ports past the server's firewall.
 | `0.0.0.0` | Every network. Only for servers not exposed to the internet. |
 | `100.x.y.z` | Your Tailscale network (the server's Tailscale IP) |
 | `192.168.x.y` | Your home network (the server's LAN IP) |
+
+Pairing links and QR codes use this address. With `0.0.0.0` they can't tell
+which address your devices use, so set `T3CODE_DOCKER_LINK_ADDRESS` to the
+server's IP or hostname, or run
+`docker exec -it t3code t3code-pair --host 192.168.1.10`.
 
 <details>
 <summary>Using a Tailscale or LAN IP? Run this once so the server comes back after a reboot.</summary>
