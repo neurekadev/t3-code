@@ -36,8 +36,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # entrypoint writes only when it is valid), then swaps Windows-only programs
 # for their Linux equivalents. HTTPS remotes on GitHub, which T3 Code clones
 # from, sign in through `gh auth login` whatever git protocol was picked there;
-# SSH keys only serve git@github.com remotes. ~/.gitconfig
-# (`git config --global`) is read later and overrides all of these.
+# SSH keys only serve git@github.com remotes. The helper calls gh through the
+# stable link made below, not the mise shim, which a project's mise.toml could
+# break. ~/.gitconfig (`git config --global`) is read later and overrides all
+# of these.
 RUN curl -fsSL https://api.github.com/meta \
       | jq -r '.ssh_keys[] | "github.com " + .' >/etc/ssh/ssh_known_hosts \
  && printf 'StrictHostKeyChecking accept-new\n' >/etc/ssh/ssh_config.d/10-t3code.conf \
@@ -45,8 +47,8 @@ RUN curl -fsSL https://api.github.com/meta \
       '[include]' '	path = /run/t3code/gitconfig' \
       '[core]' '	sshCommand = ssh' \
       '[gpg "ssh"]' '	program = ssh-keygen' \
-      '[credential "https://github.com"]' '	helper = !gh auth git-credential' \
-      '[credential "https://gist.github.com"]' '	helper = !gh auth git-credential' \
+      '[credential "https://github.com"]' '	helper = !/usr/local/bin/gh auth git-credential' \
+      '[credential "https://gist.github.com"]' '	helper = !/usr/local/bin/gh auth git-credential' \
       >>/etc/gitconfig
 
 RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
@@ -98,6 +100,9 @@ COPY config/mise.toml /app/config/mise.toml
 # it must exist, because mise silently ignores every config file without it.
 # MISE_YES is set for this build step only: at runtime it would also auto-answer
 # mise's trust prompt, letting any cloned project's mise.toml run commands.
+# /usr/local/bin/gh is a stable path for git's credential helper. `gh auth
+# setup-git` also writes this link rather than gh's versioned install path,
+# which a rebuild with a newer gh removes.
 RUN --mount=type=cache,target=/app/cache \
     sed -i 's/\r$//' /app/config/mise.toml \
  && ln -s /app/config/mise.toml /etc/mise/config.toml \
@@ -108,6 +113,7 @@ RUN --mount=type=cache,target=/app/cache \
  && mise install node \
  && mise install \
  && mise exec -- corepack enable --install-directory /app/lib/corepack yarn pnpm \
+ && ln -s "$(mise which gh)" /usr/local/bin/gh \
  && mise ls --current \
  && rm -rf /tmp/build-home
 
