@@ -1,0 +1,26 @@
+# Example SSH config. Copy it to import/ssh/config and edit it.
+#
+# Every file in import/ssh/ is copied into ~/.ssh/ under the same name, so a key
+# saved as import/ssh/id_ed25519 is ~/.ssh/id_ed25519 inside the container.
+# Keys must not have a passphrase; agents can't type one.
+#
+#   import/ssh/
+#   ├── config            this file, renamed
+#   ├── id_ed25519        your private key
+#   └── id_ed25519.pub    its public key
+
+Host github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+
+Host gitlab.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+
+# Your own server, reachable as `ssh myserver`.
+# Host myserver
+#     HostName 192.168.1.10
+#     User me
+#     IdentityFile ~/.ssh/id_ed25519
