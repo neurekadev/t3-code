@@ -2,7 +2,8 @@ services:
   t3code:
     image: ghcr.io/neurekadev/t3-code:edge
     container_name: t3code
-    # A fixed hostname keeps T3 Code's usage history on one host across image updates.
+    # Without this Docker uses the container ID as hostname, so T3 Code's
+    # environment name would change on every image update.
     hostname: t3code
     env_file: [.env]
     networks: [t3code]
