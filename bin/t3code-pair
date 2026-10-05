@@ -2,38 +2,67 @@
 # Prints a pairing link and QR code that clients can reach. `t3 pair` builds
 # its link from the container's first network interface, a private Docker IP,
 # so this swaps in T3CODE_DOCKER_BIND_ADDRESS, or --host when that binds every
-# address.
+# address. Tailscale links (https) already point at the tailnet and pass through.
 # Usage: t3code-pair [--host <server IP or hostname>] [t3 pair options]
 set -euo pipefail
 
 host=${T3CODE_DOCKER_BIND_ADDRESS:-}
-if [[ ${1:-} == --host ]]; then
-  host=${2:?--host needs the server IP or hostname}
-  shift 2
-fi
-
-# Tailscale Serve links already point at the tailnet name.
-for arg in "$@"; do
-  [[ $arg == --tailscale ]] && exec t3 pair "$@"
+args=()
+while (($#)); do
+  case $1 in
+    --host) host=${2:?--host needs the server IP or hostname}; shift 2 ;;
+    --host=*) host=${1#--host=}; shift ;;
+    -h | --help) exec t3 pair --help ;;
+    *) args+=("$1"); shift ;;
+  esac
 done
 
-if [[ -z $host || $host == 0.0.0.0 || $host == :: || $host == '[::]' ]]; then
-  echo "T3CODE_DOCKER_BIND_ADDRESS is ${host:-unset}, so the server's address is unknown here." >&2
-  echo "Pass it in: t3code-pair --host <server IP or hostname>" >&2
-  exit 1
-fi
-[[ $host == *:* && $host != \[* ]] && host="[$host]"
+# Exits unless host is an address clients can connect to; brackets bare IPv6.
+check_host() {
+  case $host in
+    '' | 0.0.0.0 | :: | '[::]')
+      echo "Can't tell the server's address from ${host:-an unset bind address}." >&2
+      echo "Pass it in: t3code-pair --host <server IP or hostname>" >&2
+      exit 1 ;;
+    \[*\]) ;;
+    *:*:*) host="[$host]" ;;
+    */* | *:*)
+      echo "--host takes only an IP or hostname, without a scheme or port: $host" >&2
+      exit 1 ;;
+  esac
+}
 
-output=$(t3 pair "$@")
-details=$(sed -n '/^Pairing URL: /,$p' <<<"$output")
-if [[ -z $details ]]; then
-  printf '%s\n' "$output"
+# Check before minting a token, unless Tailscale (which needs no host) is asked for.
+tailscale=false
+for arg in "${args[@]}"; do
+  [[ $arg == --tailscale* ]] && tailscale=true
+done
+$tailscale || check_host
+
+# t3 prints its errors on stdout, so pass captured output on when it fails.
+output=$(t3 pair "${args[@]}") || {
+  status=$?
+  printf '%s\n' "$output" >&2
+  exit "$status"
+}
+url=$(sed -n 's/^Pairing URL: //p' <<<"$output")
+if [[ -z $url ]]; then
+  printf '%s\n' "$output" >&2
   exit 1
+elif [[ $url != http://* ]]; then
+  printf '%s\n' "$output"
+  exit 0
 fi
+check_host
+
+origin=$(sed -nE 's#^(http://[^/]+).*#\1#p' <<<"$url")
+port=
+[[ $origin =~ :([0-9]+)$ ]] && port=:${BASH_REMATCH[1]}
 # compose.yaml publishes T3 Code on the same port it listens on inside.
-container_origin=$(sed -nE 's#^Pairing URL: (https?://[^/]+).*#\1#p' <<<"$details")
-details=${details//"$container_origin"/"http://$host:${container_origin##*:}"}
+details=$(sed -n '/^Pairing URL: /,$p' <<<"$output")
+details=${details//"$origin"/"http://$host$port"}
 
 printf '\n'
-qrencode -t ANSIUTF8 -m 2 "$(sed -n 's/^Pairing URL: //p' <<<"$details")"
+qrencode -t ANSIUTF8 -m 2 "$(sed -n 's/^Pairing URL: //p' <<<"$details")" ||
+  echo "(Could not draw the QR code; use the link below.)" >&2
 printf '\n%s\n' "$details"
