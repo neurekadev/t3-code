@@ -2,3 +2,4 @@
 /import/**
 !/import/**/
 !/import/**/.gitkeep
+!/import/**/*.example

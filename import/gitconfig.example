@@ -1,0 +1,26 @@
+# Example git config. Copy it to import/gitconfig and edit it.
+#
+# Paths use ~/.ssh/, where the files from import/ssh/ end up inside the
+# container. Windows-only programs (core.sshCommand, gpg.ssh.program pointing
+# at .exe files) are replaced automatically, so your own .gitconfig works too.
+
+[user]
+	name = Your Name
+	email = you@example.com
+	# Public key used to sign commits; the private key sits next to it.
+	signingkey = ~/.ssh/id_ed25519.pub
+
+[gpg]
+	format = ssh
+
+[commit]
+	gpgsign = true
+
+[tag]
+	gpgsign = true
+
+[init]
+	defaultBranch = main
+
+[pull]
+	rebase = true
