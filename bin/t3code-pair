@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Prints a pairing link and QR code that clients can reach. `t3 pair` builds
 # its link from the container's first network interface, a private Docker IP,
-# so this swaps in T3CODE_DOCKER_BIND_ADDRESS, or --host when that is 0.0.0.0.
+# so this swaps in T3CODE_DOCKER_BIND_ADDRESS, or --host when that binds every
+# address.
 # Usage: t3code-pair [--host <server IP or hostname>] [t3 pair options]
 set -euo pipefail
 
@@ -16,8 +17,8 @@ for arg in "$@"; do
   [[ $arg == --tailscale ]] && exec t3 pair "$@"
 done
 
-if [[ -z $host || $host == 0.0.0.0 ]]; then
-  echo "T3CODE_DOCKER_BIND_ADDRESS is 0.0.0.0, so the server's address is unknown here." >&2
+if [[ -z $host || $host == 0.0.0.0 || $host == :: || $host == '[::]' ]]; then
+  echo "T3CODE_DOCKER_BIND_ADDRESS is ${host:-unset}, so the server's address is unknown here." >&2
   echo "Pass it in: t3code-pair --host <server IP or hostname>" >&2
   exit 1
 fi
