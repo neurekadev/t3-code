@@ -42,7 +42,18 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
    docker exec -it t3code opencode auth login
    ```
 
-5. Connect your apps, either directly or through T3 Connect:
+5. Optional: sign in to GitHub, so T3 Code can clone your private repositories
+   and agents can open pull requests:
+
+   ```bash
+   docker exec -it t3code gh auth login
+   ```
+
+   Pick **GitHub.com**, then **Login with a web browser**, and open the link it
+   prints on any device. T3 Code clones over HTTPS, which uses this login, not
+   your SSH key. Public repositories and other git hosts don't need it.
+
+6. Connect your apps, either directly or through T3 Connect:
 
    ```bash
    docker compose logs t3code          # QR code and link for your network
@@ -69,7 +80,7 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
 
    One restart is enough; later starts reconnect on their own.
 
-6. In the app, turn on **Settings → General → Continue threads after restarts**.
+7. In the app, turn on **Settings → General → Continue threads after restarts**.
 
 ## Features
 

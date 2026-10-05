@@ -18,6 +18,7 @@ T3_CLI_LINK="$HOME/.local/bin/t3"
 # Must match SERVICE_LAUNCHER_PROTOCOL in apps/server/src/cloud/serviceProtocol.ts.
 T3_LAUNCHER_PROTOCOL=3
 SKILLS_CLONE=/app/data/skills
+GH_INSTALLS_DIR=$MISE_DATA_DIR/installs/gh
 
 log() {
   printf '[t3code] %s\n' "$*" >&2
@@ -161,6 +162,20 @@ import_git_config() {
   fi
 }
 
+# Older images let `gh auth login` and `gh auth setup-git` write gh's versioned
+# install path into ~/.gitconfig as the GitHub credential helper. An image with
+# a newer gh removes that path, so point such entries at the stable link.
+repair_gh_credential_helper() {
+  local host key
+  for host in https://github.com https://gist.github.com; do
+    key=credential.$host.helper
+    if [[ $(git config --global --get-all "$key" 2>/dev/null) == *"$GH_INSTALLS_DIR/"* ]]; then
+      git config --global --replace-all "$key" "!/usr/local/bin/gh auth git-credential" "$GH_INSTALLS_DIR/"
+      log "Pointed the gh credential helper for $host in ~/.gitconfig at /usr/local/bin/gh."
+    fi
+  done
+}
+
 # Copies import/t3 into T3 Code's userdata. Each file is applied again only when
 # its imported copy changes, so later edits made in the app are kept.
 import_t3_settings() {
@@ -300,6 +315,7 @@ mkdir -p "$HOME/.local/bin" "$T3_USERDATA"
 import_ssh
 start_ssh_agent
 import_git_config
+repair_gh_credential_helper
 import_t3_settings
 install_missing_tools
 activate_t3
