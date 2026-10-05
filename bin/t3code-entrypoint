@@ -32,7 +32,7 @@ is_private_key() {
 # this container's agent, overriding Windows-only IdentityAgent pipes. The
 # repository's *.example files are templates, not imports.
 import_ssh() {
-  local source=$IMPORT_DIR/ssh file name mode imported=()
+  local source=$IMPORT_DIR/ssh file name mode copied=()
   if [[ ! -e $source ]]; then
     log "No import/ssh folder; no SSH files imported."
     return 0
@@ -50,7 +50,7 @@ import_ssh() {
       log "Ignoring import/ssh/$name: it must be a file, not a folder."
       continue
     fi
-    imported+=("$name")
+    copied+=("$name")
     if [[ $name == config ]]; then
       {
         printf '# Generated from import/ssh/config on container start; edit that file instead.\n'
@@ -65,8 +65,8 @@ import_ssh() {
     tr -d '\r' <"$file" >"$HOME/.ssh/$name"
     chmod "$mode" "$HOME/.ssh/$name"
   done
-  if ((${#imported[@]})); then
-    log "Imported SSH files from import/ssh: ${imported[*]}."
+  if ((${#copied[@]})); then
+    log "Imported SSH files from import/ssh: ${copied[*]}."
   else
     log "import/ssh has no files; no SSH files imported."
   fi
@@ -138,7 +138,7 @@ import_git_config() {
     fi
     target=${entry#*$'\n'}
     case $target in
-      "~/"*) target=$HOME/${target#"~/"} ;;
+      \~/*) target=$HOME/${target#\~/} ;;
       /*) ;;
       *) target=$(dirname "$imported")/$target ;;
     esac
