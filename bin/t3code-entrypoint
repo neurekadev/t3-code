@@ -108,7 +108,7 @@ import_git_config() {
     log "Ignoring import/gitconfig: it must be your .gitconfig file itself, not a folder."
     return 0
   fi
-  if ! error=$(git config --file "$imported" --list 2>&1 >/dev/null); then
+  if ! error=$(git config --file "$imported" --includes --list 2>&1 >/dev/null); then
     log "Ignoring import/gitconfig: ${error#fatal: }"
     return 0
   fi
