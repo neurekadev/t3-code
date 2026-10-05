@@ -45,13 +45,15 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
 5. Connect your apps, either directly or through T3 Connect:
 
    ```bash
-   docker exec -it t3code t3 pair      # QR code and link for your network
-   docker exec -it t3code t3 connect   # T3 Connect: works from anywhere, no open ports
+   docker exec -it t3code t3code-pair   # QR code and link for your network
+   docker exec -it t3code t3 connect    # T3 Connect: works from anywhere, no open ports
    ```
 
    Scan the QR code with the mobile app, or paste the link into the desktop app
-   under **Settings → Connections → Add environment**. If the link shows
-   `0.0.0.0` or `172.x.x.x`, swap in the server's IP or hostname.
+   under **Settings → Connections → Add environment**. The link uses
+   `T3CODE_DOCKER_BIND_ADDRESS`; with `0.0.0.0`, name the server yourself:
+   `t3code-pair --host 192.168.1.10`. (Plain `t3 pair` shows the container's
+   private `172.x.x.x` address.)
 
 6. In the app, turn on **Settings → General → Continue threads after restarts**.
 
