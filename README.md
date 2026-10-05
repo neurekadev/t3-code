@@ -53,14 +53,6 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
    prints on any device. T3 Code clones over HTTPS, which uses this login, not
    your SSH key. Public repositories and other git hosts don't need it.
 
-   `-s workflow` lets agents push changes to GitHub Actions workflows. Agents
-   can't finish the browser step themselves, so without it they ask you to run
-   `gh auth refresh` each time. Already signed in? Add the scope once:
-
-   ```bash
-   docker exec -it t3code gh auth refresh -h github.com -s workflow
-   ```
-
 6. Connect your apps, either directly or through T3 Connect:
 
    ```bash
