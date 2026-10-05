@@ -55,6 +55,19 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
    `docker exec -it t3code t3code-pair --host 192.168.1.10`. (Plain `t3 pair`
    shows the container's private `172.x.x.x` address.)
 
+   For T3 Connect, answer **No** when it offers to run T3 Code in the
+   background at boot: the container already does that. If you answered yes,
+   the `Background setup did not finish` error is harmless and your sign-in is
+   saved. Skip the `t3 serve` hint and restart the container instead, so the
+   server starts the connection:
+
+   ```bash
+   docker compose restart                  # stops running agents
+   docker exec t3code t3 connect status    # Environment link: provisioned
+   ```
+
+   One restart is enough; later starts reconnect on their own.
+
 6. In the app, turn on **Settings → General → Continue threads after restarts**.
 
 ## Features
