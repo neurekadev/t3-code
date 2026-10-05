@@ -32,8 +32,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # key later changes is still refused. (GIT_TERMINAL_PROMPT=0 below does the same
 # for git password prompts: they fail instead of waiting forever.)
 #
-# Git: the system config includes your import/gitconfig (linked by the
-# entrypoint only when it is valid), then swaps Windows-only programs for their
+# Git: the system config includes your import/gitconfig (through a file the
+# entrypoint writes only when it is valid), then swaps Windows-only programs for their
 # Linux equivalents. ~/.gitconfig (`git config --global`) is read later and
 # overrides both.
 RUN curl -fsSL https://api.github.com/meta \

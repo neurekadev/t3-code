@@ -10,7 +10,7 @@ set -euo pipefail
 
 IMPORT_DIR=/app/import
 # Must match the include path in the Dockerfile's /etc/gitconfig.
-GIT_IMPORT_LINK=/run/t3code/gitconfig
+GIT_IMPORT_INCLUDE=/run/t3code/gitconfig
 T3_USERDATA="$T3CODE_HOME/userdata"
 T3_STATE_FILE="$T3CODE_HOME/runtime/service-state.json"
 T3_VERSIONS_DIR="$T3CODE_HOME/runtime/versions"
@@ -91,15 +91,16 @@ start_ssh_agent() {
   log "SSH agent ready with $loaded key(s)."
 }
 
-# /etc/gitconfig (built into the image) includes GIT_IMPORT_LINK and replaces
-# Windows-only programs. The link points at import/gitconfig only while git can
-# parse it, so a broken import cannot make every git command fail. Edits are
-# still read live. Warn about any other Windows paths it contains.
+# /etc/gitconfig (built into the image) includes GIT_IMPORT_INCLUDE and replaces
+# Windows-only programs. That file includes import/gitconfig by its real path
+# (so its relative includes resolve) only if git can parse it at start, so a
+# broken import cannot make every git command fail. Later edits are read live
+# without a check. Warn about any other Windows paths it contains.
 import_git_config() {
   local imported=$IMPORT_DIR/gitconfig error
   # A drive letter must not follow another letter, so URLs (https://) don't match.
   local windows_path='(^|[^a-z0-9])[a-z]:[\\/]|\.exe'
-  rm -f "$GIT_IMPORT_LINK"
+  rm -f "$GIT_IMPORT_INCLUDE"
   if [[ ! -e $imported ]]; then
     log "No import/gitconfig; no git config imported."
     return 0
@@ -111,8 +112,8 @@ import_git_config() {
     log "Ignoring import/gitconfig: ${error#fatal: }"
     return 0
   fi
-  mkdir -p "$(dirname "$GIT_IMPORT_LINK")"
-  ln -s "$imported" "$GIT_IMPORT_LINK"
+  mkdir -p "$(dirname "$GIT_IMPORT_INCLUDE")"
+  printf '[include]\n\tpath = %s\n' "$imported" >"$GIT_IMPORT_INCLUDE"
   log "Imported git config from import/gitconfig."
   if grep -qiE "$windows_path" "$imported"; then
     log "import/gitconfig has Windows paths in:" \
