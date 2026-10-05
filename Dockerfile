@@ -34,15 +34,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 #
 # Git: the system config includes your import/gitconfig (through a file the
 # entrypoint writes only when it is valid), then swaps Windows-only programs
-# for their Linux equivalents. ~/.gitconfig (`git config --global`) is read
-# later and overrides both.
+# for their Linux equivalents. HTTPS remotes on GitHub, which T3 Code clones
+# from, sign in through `gh auth login` whatever git protocol was picked there;
+# SSH keys only serve git@github.com remotes. ~/.gitconfig
+# (`git config --global`) is read later and overrides all of these.
 RUN curl -fsSL https://api.github.com/meta \
       | jq -r '.ssh_keys[] | "github.com " + .' >/etc/ssh/ssh_known_hosts \
  && printf 'StrictHostKeyChecking accept-new\n' >/etc/ssh/ssh_config.d/10-t3code.conf \
  && printf '%s\n' \
       '[include]' '	path = /run/t3code/gitconfig' \
       '[core]' '	sshCommand = ssh' \
-      '[gpg "ssh"]' '	program = ssh-keygen' >>/etc/gitconfig
+      '[gpg "ssh"]' '	program = ssh-keygen' \
+      '[credential "https://github.com"]' '	helper = !gh auth git-credential' \
+      '[credential "https://gist.github.com"]' '	helper = !gh auth git-credential' \
+      >>/etc/gitconfig
 
 RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
 
