@@ -106,7 +106,8 @@ git_config_error() {
     printf '%s is a folder, not a file\n' "$1"
   elif ! error=$(cd / && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=$1 git var -l 2>&1 >/dev/null); then
     error=${error##*$'\n'}
-    printf '%s\n' "${error#fatal: }"
+    error=${error#fatal: }
+    printf '%s\n' "${error:-git could not load $1}"
   fi
 }
 
@@ -116,7 +117,7 @@ git_config_error() {
 # broken import cannot make every git command fail. Later edits are read live
 # without a check. Warn about any other Windows paths it contains.
 import_git_config() {
-  local imported=$IMPORT_DIR/gitconfig error target
+  local imported=$IMPORT_DIR/gitconfig error entry target
   # A drive letter must not follow another letter, so URLs (https://) don't match.
   local windows_path='(^|[^a-z0-9])[a-z]:[\\/]|\.exe'
   rm -f "$GIT_IMPORT_INCLUDE"
@@ -129,7 +130,13 @@ import_git_config() {
   fi
   error=$(git_config_error "$imported")
   # includeIf files load only in matching repositories, so check each directly.
-  while [[ -z $error ]] && IFS= read -r target; do
+  # Entries are "key\nvalue", NUL-separated: conditions may contain spaces.
+  while [[ -z $error ]] && IFS= read -r -d '' entry; do
+    if [[ $entry != *$'\n'* ]]; then
+      error="$entry has no value"
+      break
+    fi
+    target=${entry#*$'\n'}
     case $target in
       "~/"*) target=$HOME/${target#"~/"} ;;
       /*) ;;
@@ -139,7 +146,7 @@ import_git_config() {
       error=$(git_config_error "$target")
     fi
   done < <(GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
-    git config --file "$imported" --get-regexp '^includeif\..*\.path$' 2>/dev/null | cut -d' ' -f2-)
+    git config -z --includes --file "$imported" --get-regexp '^includeif\..*\.path$' 2>/dev/null)
   if [[ -n $error ]]; then
     log "Ignoring import/gitconfig: $error"
     return 0

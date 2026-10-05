@@ -121,8 +121,9 @@ work. Start from the examples:
 | [`import/ssh/config.example`](./import/ssh/config.example) | `import/ssh/config` |
 | [`import/gitconfig.example`](./import/gitconfig.example) | `import/gitconfig` |
 
-Every start logs what was imported and what was skipped, with the reason; a
-misplaced or invalid file is skipped rather than breaking git. Check with
+Every start logs what was imported and what was skipped, with the reason. A
+misplaced `import/gitconfig`, or one with syntax errors or invalid core
+settings, is skipped rather than breaking git. Check with
 `docker compose logs t3code`. Adding or fixing `import/gitconfig` takes a
 restart. Edits to one that was valid at start apply right away but are only
 checked on the next start, so an edit that breaks it breaks git until you fix
