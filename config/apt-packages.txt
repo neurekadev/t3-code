@@ -53,10 +53,12 @@ python3
 python3-venv
 
 # Runtime support: certificates, .NET globalization, locales, time zones,
-# process tools, and the init that reaps orphaned agent processes
+# process tools, the init that reaps orphaned agent processes, and the QR code
+# t3code-pair prints
 ca-certificates
 libicu74
 locales
 tzdata
 procps
 tini
+qrencode
