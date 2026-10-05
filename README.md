@@ -46,7 +46,7 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
    and agents can open pull requests:
 
    ```bash
-   docker exec -it t3code gh auth login
+   docker exec -it t3code gh auth login -s workflow
    ```
 
    Pick **GitHub.com**, then **Login with a web browser**, and open the link it
