@@ -31,7 +31,7 @@ in that project; plain tool versions work without it.
 |---|---|---|
 | `go` | Go compiler and toolchain | 1.27 |
 | `golangci-lint` | Runs many Go linters at once | 2 |
-| `node`, `npm`, `npx` | Node.js JavaScript runtime and its package manager | 24 (LTS) |
+| `node`, `npm`, `npx` | Node.js JavaScript runtime and its package manager | 26 (LTS) |
 | `yarn`, `pnpm` | Alternative JavaScript package managers, via **Corepack** (Node's official package-manager switcher). Each project gets the version in its `package.json` `packageManager` field. | Per project |
 | `bun` | Fast JavaScript runtime, bundler and package manager | 1 |
 | `deno` | Secure JavaScript/TypeScript runtime | 2 |
