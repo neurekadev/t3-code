@@ -20,7 +20,7 @@ golangci-lint = "2"
 
 # JavaScript / TypeScript. Yarn and pnpm come from Corepack, which runs the
 # exact version each project declares in package.json "packageManager".
-node = "24"   # current LTS; Node 26 becomes LTS in late October 2026
+node = "26"   # LTS from late October 2026
 "npm:corepack" = "0.36"
 bun = "1"
 deno = "2"
