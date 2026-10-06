@@ -295,8 +295,8 @@ start_skills_sync() {
   local interval=$T3CODE_DOCKER_SKILLS_INTERVAL
   [[ -n ${T3CODE_DOCKER_SKILLS_REPO:-} ]] || return 0
   if [[ ! $interval =~ ^[0-9]+$ || $interval -lt 30 ]]; then
-    log "T3CODE_DOCKER_SKILLS_INTERVAL must be a number of seconds, 30 or more; using 300."
-    interval=300
+    log "T3CODE_DOCKER_SKILLS_INTERVAL must be a number of seconds, 30 or more; using 60."
+    interval=60
   fi
 
   link_skills

@@ -89,7 +89,7 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
 | Agents | Claude Code, Codex and OpenCode, ready to sign in |
 | Toolchains | Go, Node.js, Bun, Deno, .NET, Java, Python, Rust and everyday CLIs ([full list](TOOLS.md)) |
 | Your setup | SSH keys, git config and T3 Code settings imported on every start |
-| Shared skills | One skills repository for every agent, synced every 5 minutes |
+| Shared skills | One skills repository for every agent, synced every minute |
 | Web previews | Dev servers on ports 3000-3010, 4200, 5173-5180, 8000-8010 and 8080-8090 |
 | Persistent | Projects, threads, logins and keys survive updates |
 
@@ -168,7 +168,7 @@ Windows paths in your own `.gitconfig` for `core.sshCommand` and
 ## Skills
 
 Set `T3CODE_DOCKER_SKILLS_REPO` in `.env` to a git repository of skills. Every
-agent in every project sees them, and the server pulls changes every 5 minutes.
+agent in every project sees them, and the server pulls changes every minute.
 Push from your own machine; nothing is added to your projects.
 
 ## Updating
