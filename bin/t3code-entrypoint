@@ -9,8 +9,9 @@
 set -euo pipefail
 
 IMPORT_DIR=/app/import
-# Must match the include path in the Dockerfile's /etc/gitconfig.
+# Both must match the include paths in the Dockerfile's /etc/gitconfig.
 GIT_IMPORT_INCLUDE=/run/t3code/gitconfig
+GIT_GITLAB_INCLUDE=/run/t3code/gitlab.gitconfig
 T3_USERDATA="$T3CODE_HOME/userdata"
 T3_STATE_FILE="$T3CODE_HOME/runtime/service-state.json"
 T3_VERSIONS_DIR="$T3CODE_HOME/runtime/versions"
@@ -176,6 +177,28 @@ repair_gh_credential_helper() {
   done
 }
 
+# /etc/gitconfig signs in to https://gitlab.com through glab, which reads
+# GITLAB_TOKEN. Give a self-managed GITLAB_HOST the same helper. glab accepts
+# the host with or without a scheme, so default to https:// like glab does.
+configure_gitlab_host() {
+  local url=${GITLAB_HOST:-}
+  rm -f "$GIT_GITLAB_INCLUDE"
+  url=${url%/}
+  if [[ -z $url ]]; then
+    return 0
+  fi
+  [[ $url == http://* || $url == https://* ]] || url=https://$url
+  if [[ ! $url =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?$ ]]; then
+    log "Ignoring GITLAB_HOST: expected a host name like gitlab.example.com."
+    return 0
+  elif [[ $url == https://gitlab.com ]]; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$GIT_GITLAB_INCLUDE")"
+  printf '[credential "%s"]\n\thelper = !/usr/local/bin/glab auth git-credential\n' "$url" >"$GIT_GITLAB_INCLUDE"
+  log "Git signs in to $url through glab."
+}
+
 # Copies import/t3 into T3 Code's userdata. Each file is applied again only when
 # its imported copy changes, so later edits made in the app are kept.
 import_t3_settings() {
@@ -316,6 +339,7 @@ import_ssh
 start_ssh_agent
 import_git_config
 repair_gh_credential_helper
+configure_gitlab_host
 import_t3_settings
 install_missing_tools
 activate_t3
