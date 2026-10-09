@@ -50,6 +50,7 @@ Also installed by mise.
 | Tool | What it is | Pinned to |
 |---|---|---|
 | `gh` | GitHub CLI: pull requests, issues, releases, Actions | 2 |
+| `glab` | GitLab CLI: merge requests, issues, releases, CI/CD pipelines | 1 |
 | `just` | Command runner for project tasks (a simpler `make`) | 1 |
 | `rg` | ripgrep: very fast text search across files | 15 |
 | `fd` | Fast, friendly replacement for `find` | 10 |
