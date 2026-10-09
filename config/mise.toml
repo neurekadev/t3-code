@@ -43,6 +43,7 @@ rust = "stable"
 
 # Developer CLIs
 gh = "2"
+glab = "1"
 just = "1"
 ripgrep = "15"
 fd = "10"
