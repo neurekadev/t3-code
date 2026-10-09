@@ -51,7 +51,8 @@ Download [`compose.yaml`](./compose.yaml) and [`.env.example`](./.env.example).
 
    Pick **GitHub.com**, then **Login with a web browser**, and open the link it
    prints on any device. T3 Code clones over HTTPS, which uses this login, not
-   your SSH key. Public repositories and other git hosts don't need it.
+   your SSH key. Public repositories and other git hosts don't need it. For
+   GitLab, set `GITLAB_TOKEN` in `.env` instead (see `.env.example`).
 
 6. Connect your apps, either directly or through T3 Connect:
 
