@@ -180,8 +180,12 @@ repair_gh_credential_helper() {
 # /etc/gitconfig signs in to https://gitlab.com through glab, which reads
 # GITLAB_TOKEN. Give a self-managed GITLAB_HOST the same helper. glab accepts
 # the host with or without a scheme, so default to https:// like glab does.
+#
+# The host is also added to glab's config, with no token: `glab auth status`
+# lists only configured hosts, and T3 Code runs it to tell that a host without
+# "gitlab" in its name is GitLab.
 configure_gitlab_host() {
-  local url=${GITLAB_HOST:-}
+  local url=${GITLAB_HOST:-} host subfolder
   rm -f "$GIT_GITLAB_INCLUDE"
   url=${url%/}
   if [[ -z $url ]]; then
@@ -197,6 +201,18 @@ configure_gitlab_host() {
   mkdir -p "$(dirname "$GIT_GITLAB_INCLUDE")"
   printf '[credential "%s"]\n\thelper = !/usr/local/bin/glab auth git-credential\n' "$url" >"$GIT_GITLAB_INCLUDE"
   log "Git signs in to $url through glab."
+
+  host=${url#*://}
+  subfolder=${host#*/}
+  [[ $subfolder != "$host" ]] || subfolder=
+  host=${host%%/*}
+  if glab config set --host "$host" api_protocol "${url%%://*}" &&
+    glab config set --host "$host" git_protocol https &&
+    glab config set --host "$host" subfolder "$subfolder"; then
+    log "Added $host to glab's config, so T3 Code detects it as GitLab."
+  else
+    log "Could not add $host to glab's config; T3 Code may not detect it as GitLab."
+  fi
 }
 
 # Copies import/t3 into T3 Code's userdata. Each file is applied again only when
